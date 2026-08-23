@@ -64,8 +64,8 @@ const clientDistPath = path.join(__dirname, '../client/dist');
 if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
-      return next();
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/sample-docs') || req.path === '/health') {
+      return res.status(404).json({ success: false, error: 'Endpoint no encontrado' });
     }
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });
