@@ -1,0 +1,22 @@
+{
+  "short_name": "Hogar Smart",
+  "name": "Domótica & Gestión Integral del Hogar",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0B0F17",
+  "theme_color": "#0B0F17",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/"
+}

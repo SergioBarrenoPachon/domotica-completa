@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: domotica-hogar-completa
+    env: node
+    plan: free
+    region: frankfurt # o oregon / ohioc
+    buildCommand: npm run install:all && npm run build
+    startCommand: node server/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    disk:
+      name: domotica-data
+      mountPath: /var/data
+      sizeGB: 1
