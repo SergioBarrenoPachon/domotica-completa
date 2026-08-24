@@ -97,6 +97,134 @@ router.delete('/transactions/:id', (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+// GET /api/finance/long-term - Motor de proyección patrimonial y presupuestaria (1 a 30 años)
+router.get('/long-term', (req, res) => {
+  try {
+    const { years = 10, startYear, inflation = 2.5, growth = 2.0, netWorth = 15000, extraSavings = 0 } = req.query;
+    const projection = db.calculateLongTermProjection({
+      yearsCount: parseInt(years, 10),
+      startYear: startYear ? parseInt(startYear, 10) : new Date().getFullYear(),
+      inflationRate: parseFloat(inflation),
+      salaryGrowthRate: parseFloat(growth),
+      initialNetWorth: parseFloat(netWorth),
+      monthlyExtraSavings: parseFloat(extraSavings)
+    });
+    res.json({ success: true, data: projection });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// --- LOANS & MORTGAGES ENDPOINTS ---
+// GET /api/finance/loans
+router.get('/loans', (req, res) => {
+  try {
+    const loans = db.getLoans();
+    res.json({ success: true, data: loans });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/finance/loans - Crear préstamo o hipoteca
+router.post('/loans', (req, res) => {
+  try {
+    const newLoan = db.addLoan(req.body);
+    res.status(201).json({ success: true, data: newLoan });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/finance/loans/:id - Actualizar datos de préstamo
+router.put('/loans/:id', (req, res) => {
+  try {
+    const updated = db.updateLoan(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ success: false, error: 'Préstamo no encontrado' });
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/finance/loans/:id - Eliminar préstamo
+router.delete('/loans/:id', (req, res) => {
+  try {
+    const result = db.deleteLoan(req.params.id);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/finance/loans/:id/simulate - Simular amortización anticipada (reducir plazo vs reducir cuota)
+router.post('/loans/:id/simulate', (req, res) => {
+  try {
+    const { extraAmount, mode = 'reduce_term' } = req.body;
+    if (!extraAmount || extraAmount <= 0) {
+      return res.status(400).json({ success: false, error: 'Importe extraordinario requerido y mayor a 0' });
+    }
+    const result = db.simulateLoanAmortization(req.params.id, extraAmount, mode);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// --- SAVINGS GOALS ENDPOINTS ---
+// GET /api/finance/goals
+router.get('/goals', (req, res) => {
+  try {
+    const goals = db.getGoals();
+    res.json({ success: true, data: goals });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/finance/goals - Crear meta de ahorro
+router.post('/goals', (req, res) => {
+  try {
+    const newGoal = db.addGoal(req.body);
+    res.status(201).json({ success: true, data: newGoal });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/finance/goals/:id - Actualizar meta
+router.put('/goals/:id', (req, res) => {
+  try {
+    const updated = db.updateGoal(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ success: false, error: 'Meta no encontrada' });
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/finance/goals/:id - Eliminar meta
+router.delete('/goals/:id', (req, res) => {
+  try {
+    const result = db.deleteGoal(req.params.id);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/finance/goals/:id/contribute - Añadir aportación puntual a una meta
+router.post('/goals/:id/contribute', (req, res) => {
+  try {
+    const { amount } = req.body;
+    if (!amount || Number(amount) <= 0) {
+      return res.status(400).json({ success: false, error: 'Monto de aportación requerido' });
+    }
+    const goal = db.contributeGoal(req.params.id, amount);
+    res.json({ success: true, data: goal });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
 });
 
 export default router;

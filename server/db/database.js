@@ -29,6 +29,14 @@ class Database {
       if (fs.existsSync(DB_FILE)) {
         const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
         this.data = JSON.parse(fileContent);
+        
+        // Ensure finance subcollections exist
+        if (!this.data.finance) this.data.finance = {};
+        if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = initialSeedData.finance.transactions || [];
+        if (!Array.isArray(this.data.finance.loans)) this.data.finance.loans = initialSeedData.finance.loans || [];
+        if (!Array.isArray(this.data.finance.goals)) this.data.finance.goals = initialSeedData.finance.goals || [];
+        if (!Array.isArray(this.data.finance.overrides)) this.data.finance.overrides = [];
+        if (!this.data.finance.payments) this.data.finance.payments = {};
       } else {
         this.data = JSON.parse(JSON.stringify(initialSeedData));
         this.save();
@@ -328,7 +336,7 @@ class Database {
     };
   }
 
-  // --- FINANCE ENGINE WITH RECURRENCE & OVERRIDES ---
+  // --- FINANCE ENGINE WITH RECURRENCE, CALENDAR, LONG-TERM & LOANS ---
   getFinanceTransactions() {
     return this.data.finance.transactions || [];
   }
@@ -344,21 +352,26 @@ class Database {
       dayOfMonth: Number(tx.dayOfMonth) || 1,
       monthOfYear: tx.monthOfYear ? Number(tx.monthOfYear) : null,
       active: tx.active !== false,
-      startDate: tx.startDate || new Date().toISOString().slice(0, 7)
+      startDate: tx.startDate || new Date().toISOString().slice(0, 7),
+      endDate: tx.endDate || null,
+      isIndefinite: tx.isIndefinite !== false,
+      yearlyIncreasePct: tx.yearlyIncreasePct ? Number(tx.yearlyIncreasePct) : 0,
+      loanId: tx.loanId || null
     };
+    if (!this.data.finance.transactions) this.data.finance.transactions = [];
     this.data.finance.transactions.push(newTx);
     this.save();
     return newTx;
   }
 
   updateFinanceTransaction(id, updates, mode = 'future') {
-    // mode can be:
-    // 'future' -> updates master recurring transaction rule
-    // 'month'  -> creates an override exception for a specific month
     if (mode === 'future') {
       const tx = this.data.finance.transactions.find(t => t.id === id);
       if (tx) {
         if (updates.amount !== undefined) updates.amount = Number(updates.amount);
+        if (updates.dayOfMonth !== undefined) updates.dayOfMonth = Number(updates.dayOfMonth);
+        if (updates.monthOfYear !== undefined) updates.monthOfYear = updates.monthOfYear ? Number(updates.monthOfYear) : null;
+        if (updates.yearlyIncreasePct !== undefined) updates.yearlyIncreasePct = Number(updates.yearlyIncreasePct);
         Object.assign(tx, updates);
         this.save();
         return { type: 'rule_updated', transaction: tx };
@@ -370,7 +383,6 @@ class Database {
   createMonthOverride(txId, month, updates) {
     if (!this.data.finance.overrides) this.data.finance.overrides = [];
     
-    // Find existing override for this tx + month
     const existingIndex = this.data.finance.overrides.findIndex(o => o.transactionId === txId && o.month === month);
     const tx = this.data.finance.transactions.find(t => t.id === txId);
 
@@ -427,8 +439,15 @@ class Database {
 
   calculateMonthFinance(monthKey) { // 'YYYY-MM'
     const [yearStr, monthStr] = monthKey.split('-');
+    const currentYear = parseInt(yearStr, 10);
     const currentMonthNumber = parseInt(monthStr, 10); // 1 - 12
     
+    // Calendar metadata
+    const daysInMonth = new Date(currentYear, currentMonthNumber, 0).getDate();
+    // In JavaScript: 0 = Sunday, 1 = Monday... We convert to Monday = 0 ... Sunday = 6 for standard European calendars
+    const rawFirstDay = new Date(currentYear, currentMonthNumber - 1, 1).getDay();
+    const firstDayOfWeek = (rawFirstDay + 6) % 7; // 0 = Lunes, 6 = Domingo
+
     const transactions = this.data.finance.transactions || [];
     const overrides = (this.data.finance.overrides || []).filter(o => o.month === monthKey);
     const monthPayments = (this.data.finance.payments && this.data.finance.payments[monthKey]) || {};
@@ -437,6 +456,10 @@ class Database {
 
     transactions.forEach(tx => {
       if (!tx.active) return;
+
+      // Filter by start and end date if defined
+      if (tx.startDate && monthKey < tx.startDate) return;
+      if (tx.endDate && monthKey > tx.endDate) return;
 
       // Check frequency applicability
       let applies = false;
@@ -455,6 +478,7 @@ class Database {
       if (applies) {
         const override = overrides.find(o => o.transactionId === tx.id);
         const paymentInfo = monthPayments[tx.id] || { paid: false, date: null };
+        const safeDay = Math.min(Math.max(Number(tx.dayOfMonth) || 1, 1), daysInMonth);
 
         items.push({
           id: tx.id,
@@ -464,12 +488,14 @@ class Database {
           type: tx.type,
           category: override ? override.category : tx.category,
           frequency: tx.frequency,
-          dayOfMonth: tx.dayOfMonth,
+          dayOfMonth: safeDay,
           isOverridden: Boolean(override),
           overrideId: override ? override.id : null,
           overrideNotes: override ? override.notes : null,
           paid: Boolean(paymentInfo.paid),
-          paidDate: paymentInfo.date
+          paidDate: paymentInfo.date,
+          loanId: tx.loanId || null,
+          endDate: tx.endDate || null
         });
       }
     });
@@ -497,9 +523,47 @@ class Database {
       percentage: totalExpenses > 0 ? Math.round((categoryBreakdown[cat] / totalExpenses) * 100) : 0
     })).sort((a, b) => b.amount - a.amount);
 
+    // Build Daily Calendar Map (1 to daysInMonth)
+    const dailyBreakdown = {};
+    for (let day = 1; day <= daysInMonth; day++) {
+      dailyBreakdown[day] = {
+        day,
+        items: [],
+        dayIncome: 0,
+        dayExpenses: 0,
+        hasPending: false,
+        isHeavyBillDay: false
+      };
+    }
+
+    items.forEach(item => {
+      const dayData = dailyBreakdown[item.dayOfMonth];
+      if (dayData) {
+        dayData.items.push(item);
+        if (item.type === 'ingreso') {
+          dayData.dayIncome += item.amount;
+        } else {
+          dayData.dayExpenses += item.amount;
+          if (!item.paid) dayData.hasPending = true;
+        }
+      }
+    });
+
+    // Mark heavy bill days (> 25% of total expenses on a single day)
+    Object.values(dailyBreakdown).forEach(d => {
+      if (totalExpenses > 0 && d.dayExpenses >= (totalExpenses * 0.25)) {
+        d.isHeavyBillDay = true;
+      }
+    });
+
     return {
       month: monthKey,
+      year: currentYear,
+      monthNumber: currentMonthNumber,
+      daysInMonth,
+      firstDayOfWeek, // 0 = Lunes, 6 = Domingo
       items,
+      dailyBreakdown,
       totalIncome,
       totalExpenses,
       projectedBalance,
@@ -509,6 +573,398 @@ class Database {
       categoryList,
       pendingExpensesCount: items.filter(i => i.type === 'gasto' && !i.paid).length
     };
+  }
+
+  // --- LONG-TERM PROJECTIONS ENGINE (1 TO 30 YEARS) ---
+  calculateLongTermProjection({
+    yearsCount = 10,
+    startYear = new Date().getFullYear(),
+    inflationRate = 2.5,
+    salaryGrowthRate = 2.0,
+    initialNetWorth = 15000,
+    monthlyExtraSavings = 0
+  } = {}) {
+    const years = Math.min(Math.max(parseInt(yearsCount, 10) || 10, 1), 30);
+    const inflation = parseFloat(inflationRate) / 100;
+    const salaryGrowth = parseFloat(salaryGrowthRate) / 100;
+    const extraSavings = parseFloat(monthlyExtraSavings) || 0;
+
+    const transactions = (this.data.finance.transactions || []).filter(t => t.active);
+    const loans = this.data.finance.loans || [];
+    const goals = this.data.finance.goals || [];
+
+    const yearlyData = [];
+    let runningNetWorth = parseFloat(initialNetWorth) || 0;
+    const milestones = [];
+
+    // Track active loans ending years
+    loans.forEach(loan => {
+      if (loan.endDate) {
+        const endY = parseInt(loan.endDate.slice(0, 4), 10);
+        if (endY >= startYear && endY <= startYear + years) {
+          milestones.push({
+            year: endY,
+            type: 'loan_finished',
+            title: `Fin de ${loan.name}`,
+            description: `Se libera la cuota mensual de ${loan.monthlyPayment}€/mes (+${Math.round(loan.monthlyPayment * 12)}€ anuales).`,
+            amount: loan.monthlyPayment
+          });
+        }
+      }
+    });
+
+    // Track goals reaching target
+    goals.forEach(goal => {
+      if (goal.deadline) {
+        const goalY = parseInt(goal.deadline.slice(0, 4), 10);
+        if (goalY >= startYear && goalY <= startYear + years) {
+          milestones.push({
+            year: goalY,
+            type: 'goal_target',
+            title: `Meta Objetivo: ${goal.title}`,
+            description: `Fecha objetivo fijada para alcanzar ${goal.targetAmount}€.`,
+            amount: goal.targetAmount
+          });
+        }
+      }
+    });
+
+    for (let i = 0; i < years; i++) {
+      const year = startYear + i;
+      let annualIncome = 0;
+      let annualFixedExpenses = 0;
+      let annualDiscretionaryExpenses = 0;
+      let annualDebtPayments = 0;
+
+      // Compound growth factors
+      const incomeGrowthFactor = Math.pow(1 + salaryGrowth, i);
+      const inflationFactor = Math.pow(1 + inflation, i);
+
+      // Iterate over 12 months for this year
+      for (let m = 1; m <= 12; m++) {
+        const monthKey = `${year}-${String(m).padStart(2, '0')}`;
+
+        transactions.forEach(tx => {
+          if (tx.startDate && monthKey < tx.startDate) return;
+          if (tx.endDate && monthKey > tx.endDate) return;
+
+          let applies = false;
+          if (tx.frequency === 'mensual') applies = true;
+          else if (tx.frequency === 'trimestral') applies = (m % 3 === 0);
+          else if (tx.frequency === 'semestral') applies = (m === 6 || m === 12);
+          else if (tx.frequency === 'anual') applies = (tx.monthOfYear ? tx.monthOfYear === m : m === 1);
+          else if (tx.frequency === 'puntual') applies = (tx.startDate === monthKey);
+
+          if (!applies) return;
+
+          if (tx.type === 'ingreso') {
+            // Apply salary growth if category is Sueldo/Freelance or transaction has yearlyIncreasePct
+            const growth = tx.yearlyIncreasePct ? Math.pow(1 + (tx.yearlyIncreasePct / 100), i) : incomeGrowthFactor;
+            annualIncome += tx.amount * growth;
+          } else {
+            if (tx.loanId) {
+              // Fixed debt payments don't inflate if fixed rate
+              annualDebtPayments += tx.amount;
+            } else if (tx.category === 'Vivienda' || tx.category === 'Suministros' || tx.category === 'Seguros' || tx.category === 'Impuestos') {
+              const growth = tx.yearlyIncreasePct ? Math.pow(1 + (tx.yearlyIncreasePct / 100), i) : inflationFactor;
+              annualFixedExpenses += tx.amount * growth;
+            } else {
+              const growth = tx.yearlyIncreasePct ? Math.pow(1 + (tx.yearlyIncreasePct / 100), i) : inflationFactor;
+              annualDiscretionaryExpenses += tx.amount * growth;
+            }
+          }
+        });
+
+        // Add monthly extra savings if configured
+        annualIncome += extraSavings;
+      }
+
+      const totalExpenses = annualFixedExpenses + annualDiscretionaryExpenses + annualDebtPayments;
+      const netSavings = annualIncome - totalExpenses;
+      runningNetWorth += netSavings;
+
+      // Calculate compound investment value assuming 4% real return on accumulated wealth
+      const investmentGrowth = runningNetWorth > 0 ? runningNetWorth * 0.035 : 0;
+      const wealthWithInvestment = runningNetWorth + investmentGrowth;
+
+      yearlyData.push({
+        year,
+        yearLabel: `${year}`,
+        income: Math.round(annualIncome),
+        expenses: Math.round(totalExpenses),
+        fixedExpenses: Math.round(annualFixedExpenses),
+        discretionaryExpenses: Math.round(annualDiscretionaryExpenses),
+        debtPayments: Math.round(annualDebtPayments),
+        netSavings: Math.round(netSavings),
+        savingsRate: annualIncome > 0 ? Math.round((netSavings / annualIncome) * 100) : 0,
+        netWorth: Math.round(runningNetWorth),
+        wealthWithInvestment: Math.round(wealthWithInvestment)
+      });
+    }
+
+    return {
+      projectionYears: years,
+      startYear,
+      endYear: startYear + years - 1,
+      inflationRatePercent: inflation * 100,
+      salaryGrowthPercent: salaryGrowth * 100,
+      initialNetWorth,
+      finalProjectedNetWorth: yearlyData[yearlyData.length - 1]?.netWorth || 0,
+      finalProjectedWithInvestment: yearlyData[yearlyData.length - 1]?.wealthWithInvestment || 0,
+      yearlyData,
+      milestones
+    };
+  }
+
+  // --- LOANS & MORTGAGES ---
+  getLoans() {
+    return (this.data.finance.loans || []).map(loan => {
+      const remainingMonths = loan.endDate ? this.calculateMonthsBetween(new Date().toISOString().slice(0, 7), loan.endDate) : 0;
+      const paidMonths = (loan.termYears * 12) - Math.max(remainingMonths, 0);
+      const progress = loan.initialAmount > 0 ? Math.min(100, Math.max(0, Math.round(((loan.initialAmount - loan.currentBalance) / loan.initialAmount) * 100))) : 0;
+
+      return {
+        ...loan,
+        remainingMonths: Math.max(0, remainingMonths),
+        paidMonths: Math.max(0, paidMonths),
+        progressPercent: progress,
+        totalPaidSoFar: loan.initialAmount - loan.currentBalance
+      };
+    });
+  }
+
+  calculateMonthsBetween(startKey, endKey) {
+    const [y1, m1] = startKey.split('-').map(Number);
+    const [y2, m2] = endKey.split('-').map(Number);
+    return (y2 - y1) * 12 + (m2 - m1);
+  }
+
+  addLoan(loan) {
+    const newLoan = {
+      id: `loan-${Date.now()}`,
+      name: loan.name || 'Nuevo Préstamo',
+      type: loan.type || 'personal', // 'hipoteca' | 'coche' | 'personal' | 'reforma'
+      bank: loan.bank || '',
+      initialAmount: Number(loan.initialAmount) || 0,
+      currentBalance: Number(loan.currentBalance) || Number(loan.initialAmount) || 0,
+      interestRate: Number(loan.interestRate) || 0,
+      interestType: loan.interestType || 'fijo',
+      monthlyPayment: Number(loan.monthlyPayment) || 0,
+      startDate: loan.startDate || new Date().toISOString().slice(0, 7),
+      endDate: loan.endDate || null,
+      termYears: Number(loan.termYears) || 5,
+      propertyValue: loan.propertyValue ? Number(loan.propertyValue) : null,
+      notes: loan.notes || ''
+    };
+
+    if (!this.data.finance.loans) this.data.finance.loans = [];
+    this.data.finance.loans.push(newLoan);
+
+    // Auto-create a recurring transaction if requested
+    if (loan.autoCreateTransaction !== false && newLoan.monthlyPayment > 0) {
+      this.addFinanceTransaction({
+        title: `Cuota ${newLoan.name}`,
+        amount: newLoan.monthlyPayment,
+        type: 'gasto',
+        category: newLoan.type === 'hipoteca' ? 'Vivienda' : 'Vehículo',
+        frequency: 'mensual',
+        dayOfMonth: loan.dayOfMonth || 1,
+        startDate: newLoan.startDate,
+        endDate: newLoan.endDate,
+        loanId: newLoan.id,
+        isIndefinite: false
+      });
+    }
+
+    this.save();
+    return newLoan;
+  }
+
+  updateLoan(id, updates) {
+    const loan = (this.data.finance.loans || []).find(l => l.id === id);
+    if (loan) {
+      if (updates.initialAmount !== undefined) updates.initialAmount = Number(updates.initialAmount);
+      if (updates.currentBalance !== undefined) updates.currentBalance = Number(updates.currentBalance);
+      if (updates.interestRate !== undefined) updates.interestRate = Number(updates.interestRate);
+      if (updates.monthlyPayment !== undefined) updates.monthlyPayment = Number(updates.monthlyPayment);
+      if (updates.termYears !== undefined) updates.termYears = Number(updates.termYears);
+      if (updates.propertyValue !== undefined) updates.propertyValue = Number(updates.propertyValue);
+      Object.assign(loan, updates);
+
+      // Also update linked transaction if any
+      const linkedTx = (this.data.finance.transactions || []).find(t => t.loanId === id);
+      if (linkedTx && updates.monthlyPayment) {
+        linkedTx.amount = updates.monthlyPayment;
+        if (updates.endDate) linkedTx.endDate = updates.endDate;
+      }
+
+      this.save();
+    }
+    return loan;
+  }
+
+  deleteLoan(id) {
+    this.data.finance.loans = (this.data.finance.loans || []).filter(l => l.id !== id);
+    // Unlink transaction or keep it
+    (this.data.finance.transactions || []).forEach(t => {
+      if (t.loanId === id) t.loanId = null;
+    });
+    this.save();
+    return { success: true, id };
+  }
+
+  simulateLoanAmortization(id, extraAmount, mode = 'reduce_term') {
+    const loan = (this.data.finance.loans || []).find(l => l.id === id);
+    if (!loan) throw new Error('Préstamo no encontrado');
+
+    const principal = Number(loan.currentBalance);
+    const annualRate = Number(loan.interestRate) / 100;
+    const monthlyRate = annualRate / 12;
+    const currentPayment = Number(loan.monthlyPayment);
+    const extra = Number(extraAmount);
+
+    if (extra <= 0 || extra >= principal) {
+      throw new Error('El importe extraordinario debe ser mayor que 0 y menor que el capital pendiente');
+    }
+
+    const newPrincipal = principal - extra;
+
+    if (mode === 'reduce_term') {
+      // Calculate remaining months with current payment on newPrincipal
+      let monthsRemaining = 0;
+      let balance = newPrincipal;
+      let totalInterestNew = 0;
+
+      while (balance > 0 && monthsRemaining < 600) {
+        const interest = balance * monthlyRate;
+        const principalPaid = currentPayment - interest;
+        if (principalPaid <= 0) break;
+        totalInterestNew += interest;
+        balance -= principalPaid;
+        monthsRemaining++;
+      }
+
+      // Calculate baseline remaining months without extra
+      let baseMonths = 0;
+      let baseBalance = principal;
+      let totalInterestBase = 0;
+      while (baseBalance > 0 && baseMonths < 600) {
+        const interest = baseBalance * monthlyRate;
+        const principalPaid = currentPayment - interest;
+        if (principalPaid <= 0) break;
+        totalInterestBase += interest;
+        baseBalance -= principalPaid;
+        baseMonths++;
+      }
+
+      const monthsSaved = Math.max(0, baseMonths - monthsRemaining);
+      const interestSaved = Math.max(0, totalInterestBase - totalInterestNew);
+
+      return {
+        mode: 'reduce_term',
+        extraAmount: extra,
+        originalBalance: principal,
+        newBalance: newPrincipal,
+        currentMonthlyPayment: currentPayment,
+        newMonthlyPayment: currentPayment,
+        originalRemainingMonths: baseMonths,
+        newRemainingMonths: monthsRemaining,
+        monthsSaved,
+        yearsSaved: (monthsSaved / 12).toFixed(1),
+        interestSaved: Math.round(interestSaved)
+      };
+    } else {
+      // mode === 'reduce_payment' (reduces monthly payment keeping remaining term)
+      const remainingMonths = loan.endDate ? this.calculateMonthsBetween(new Date().toISOString().slice(0, 7), loan.endDate) : (loan.termYears * 12);
+      const n = Math.max(remainingMonths, 1);
+
+      const newMonthlyPayment = monthlyRate > 0
+        ? (newPrincipal * (monthlyRate * Math.pow(1 + monthlyRate, n))) / (Math.pow(1 + monthlyRate, n) - 1)
+        : newPrincipal / n;
+
+      const monthlySavings = Math.max(0, currentPayment - newMonthlyPayment);
+      const totalSavingsOverTerm = monthlySavings * n;
+
+      return {
+        mode: 'reduce_payment',
+        extraAmount: extra,
+        originalBalance: principal,
+        newBalance: newPrincipal,
+        originalMonthlyPayment: currentPayment,
+        newMonthlyPayment: Math.round(newMonthlyPayment * 100) / 100,
+        monthlySavings: Math.round(monthlySavings * 100) / 100,
+        totalSavingsOverTerm: Math.round(totalSavingsOverTerm),
+        remainingMonths: n
+      };
+    }
+  }
+
+  // --- SAVINGS GOALS ---
+  getGoals() {
+    return (this.data.finance.goals || []).map(goal => {
+      const remainingAmount = Math.max(0, goal.targetAmount - goal.currentAmount);
+      const progress = goal.targetAmount > 0 ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100)) : 0;
+      
+      let monthsToDeadline = 12;
+      if (goal.deadline) {
+        monthsToDeadline = Math.max(1, this.calculateMonthsBetween(new Date().toISOString().slice(0, 7), goal.deadline));
+      }
+      const suggestedMonthlySavings = Math.round((remainingAmount / monthsToDeadline) * 100) / 100;
+
+      return {
+        ...goal,
+        remainingAmount,
+        progressPercent: progress,
+        monthsToDeadline,
+        suggestedMonthlySavings
+      };
+    });
+  }
+
+  addGoal(goal) {
+    const newGoal = {
+      id: `goal-${Date.now()}`,
+      title: goal.title || 'Nueva Meta',
+      category: goal.category || 'Ahorro',
+      targetAmount: Number(goal.targetAmount) || 1000,
+      currentAmount: Number(goal.currentAmount) || 0,
+      deadline: goal.deadline || null,
+      monthlyContribution: Number(goal.monthlyContribution) || 0,
+      color: goal.color || 'emerald',
+      icon: goal.icon || 'TrendingUp',
+      notes: goal.notes || ''
+    };
+    if (!this.data.finance.goals) this.data.finance.goals = [];
+    this.data.finance.goals.push(newGoal);
+    this.save();
+    return newGoal;
+  }
+
+  updateGoal(id, updates) {
+    const goal = (this.data.finance.goals || []).find(g => g.id === id);
+    if (goal) {
+      if (updates.targetAmount !== undefined) updates.targetAmount = Number(updates.targetAmount);
+      if (updates.currentAmount !== undefined) updates.currentAmount = Number(updates.currentAmount);
+      if (updates.monthlyContribution !== undefined) updates.monthlyContribution = Number(updates.monthlyContribution);
+      Object.assign(goal, updates);
+      this.save();
+    }
+    return goal;
+  }
+
+  deleteGoal(id) {
+    this.data.finance.goals = (this.data.finance.goals || []).filter(g => g.id !== id);
+    this.save();
+    return { success: true, id };
+  }
+
+  contributeGoal(id, amount) {
+    const goal = (this.data.finance.goals || []).find(g => g.id === id);
+    if (!goal) throw new Error('Meta no encontrada');
+
+    goal.currentAmount = Math.max(0, (Number(goal.currentAmount) || 0) + Number(amount));
+    this.save();
+    return goal;
   }
 
   // --- DOMOTICS (ROOMS, DEVICES, SCENES & EWELINK/HA) ---

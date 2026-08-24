@@ -110,17 +110,89 @@ export const initialSeedData = {
   ],
   finance: {
     transactions: [
-      { id: "fin-1", title: "Nómina Principal", amount: 2650.00, type: "ingreso", category: "Sueldo", frequency: "mensual", dayOfMonth: 28, active: true },
-      { id: "fin-2", title: "Ingreso Extra / Consultoría", amount: 450.00, type: "ingreso", category: "Freelance", frequency: "mensual", dayOfMonth: 15, active: true },
-      { id: "fin-3", title: "Hipoteca / Alquiler", amount: 890.00, type: "gasto", category: "Vivienda", frequency: "mensual", dayOfMonth: 1, active: true },
-      { id: "fin-4", title: "Comunidad de Propietarios", amount: 75.00, type: "gasto", category: "Vivienda", frequency: "mensual", dayOfMonth: 5, active: true },
-      { id: "fin-5", title: "Suministro Luz (Endesa / Iberdrola)", amount: 85.00, type: "gasto", category: "Suministros", frequency: "mensual", dayOfMonth: 10, active: true },
-      { id: "fin-6", title: "Fibra Óptica y Móviles", amount: 52.00, type: "gasto", category: "Comunicaciones", frequency: "mensual", dayOfMonth: 8, active: true },
-      { id: "fin-7", title: "Seguro de Hogar Mapfre", amount: 240.00, type: "gasto", category: "Seguros", frequency: "anual", dayOfMonth: 15, monthOfYear: 9, active: true },
-      { id: "fin-8", title: "Seguro Coche Todo Riesgo", amount: 420.00, type: "gasto", category: "Vehículo", frequency: "anual", dayOfMonth: 20, monthOfYear: 10, active: true },
-      { id: "fin-9", title: "Suscripciones (Netflix, Spotify, Prime)", amount: 35.00, type: "gasto", category: "Ocio", frequency: "mensual", dayOfMonth: 3, active: true },
-      { id: "fin-10", title: "Supermercado y Alimentación", amount: 480.00, type: "gasto", category: "Alimentación", frequency: "mensual", dayOfMonth: 1, active: true },
-      { id: "fin-11", title: "IBI Impuesto Bienes Inmuebles", amount: 310.00, type: "gasto", category: "Impuestos", frequency: "semestral", dayOfMonth: 12, active: true }
+      { id: "fin-1", title: "Nómina Principal", amount: 2650.00, type: "ingreso", category: "Sueldo", frequency: "mensual", dayOfMonth: 28, startDate: "2024-01", endDate: null, isIndefinite: true, yearlyIncreasePct: 2.0, active: true },
+      { id: "fin-2", title: "Ingreso Extra / Consultoría", amount: 450.00, type: "ingreso", category: "Freelance", frequency: "mensual", dayOfMonth: 15, startDate: "2025-01", endDate: "2028-12", isIndefinite: false, yearlyIncreasePct: 0, active: true },
+      { id: "fin-3", title: "Cuota Hipoteca Vivienda", amount: 890.00, type: "gasto", category: "Vivienda", frequency: "mensual", dayOfMonth: 1, startDate: "2021-06", endDate: "2046-06", isIndefinite: false, loanId: "loan-1", active: true },
+      { id: "fin-4", title: "Comunidad de Propietarios", amount: 75.00, type: "gasto", category: "Vivienda", frequency: "mensual", dayOfMonth: 5, startDate: "2021-06", endDate: null, isIndefinite: true, yearlyIncreasePct: 1.5, active: true },
+      { id: "fin-5", title: "Suministro Luz (Endesa / Iberdrola)", amount: 85.00, type: "gasto", category: "Suministros", frequency: "mensual", dayOfMonth: 10, startDate: "2021-06", endDate: null, isIndefinite: true, yearlyIncreasePct: 2.5, active: true },
+      { id: "fin-6", title: "Fibra Óptica y Móviles", amount: 52.00, type: "gasto", category: "Comunicaciones", frequency: "mensual", dayOfMonth: 8, startDate: "2023-01", endDate: null, isIndefinite: true, active: true },
+      { id: "fin-7", title: "Seguro de Hogar Mapfre", amount: 240.00, type: "gasto", category: "Seguros", frequency: "anual", dayOfMonth: 15, monthOfYear: 9, startDate: "2021-09", endDate: null, isIndefinite: true, active: true },
+      { id: "fin-8", title: "Seguro Coche Todo Riesgo", amount: 420.00, type: "gasto", category: "Vehículo", frequency: "anual", dayOfMonth: 20, monthOfYear: 10, startDate: "2022-10", endDate: null, isIndefinite: true, active: true },
+      { id: "fin-9", title: "Suscripciones (Netflix, Spotify, Prime)", amount: 35.00, type: "gasto", category: "Ocio", frequency: "mensual", dayOfMonth: 3, startDate: "2022-01", endDate: null, isIndefinite: true, active: true },
+      { id: "fin-10", title: "Supermercado y Alimentación", amount: 480.00, type: "gasto", category: "Alimentación", frequency: "mensual", dayOfMonth: 1, startDate: "2021-01", endDate: null, isIndefinite: true, yearlyIncreasePct: 2.0, active: true },
+      { id: "fin-11", title: "IBI Impuesto Bienes Inmuebles", amount: 310.00, type: "gasto", category: "Impuestos", frequency: "semestral", dayOfMonth: 12, startDate: "2021-06", endDate: null, isIndefinite: true, active: true },
+      { id: "fin-12", title: "Préstamo Coche Híbrido", amount: 215.00, type: "gasto", category: "Vehículo", frequency: "mensual", dayOfMonth: 5, startDate: "2024-03", endDate: "2029-03", isIndefinite: false, loanId: "loan-2", active: true }
+    ],
+    loans: [
+      {
+        id: "loan-1",
+        name: "Hipoteca Fija Vivienda Habitual",
+        type: "hipoteca",
+        bank: "BBVA / Santander",
+        initialAmount: 220000,
+        currentBalance: 184500,
+        interestRate: 2.45,
+        interestType: "fijo",
+        monthlyPayment: 890.00,
+        startDate: "2021-06",
+        endDate: "2046-06",
+        termYears: 25,
+        propertyValue: 280000,
+        notes: "Bonificada por nómina, seguro de hogar y vida"
+      },
+      {
+        id: "loan-2",
+        name: "Préstamo Financiación Vehículo",
+        type: "coche",
+        bank: "Toyota Financial Services",
+        initialAmount: 12000,
+        currentBalance: 6450,
+        interestRate: 5.95,
+        interestType: "fijo",
+        monthlyPayment: 215.00,
+        startDate: "2024-03",
+        endDate: "2029-03",
+        termYears: 5,
+        notes: "Finaliza en marzo 2029"
+      }
+    ],
+    goals: [
+      {
+        id: "goal-1",
+        title: "Fondo de Emergencia (6 Meses)",
+        category: "Seguridad",
+        targetAmount: 12000,
+        currentAmount: 8500,
+        deadline: "2027-06",
+        monthlyContribution: 250,
+        color: "emerald",
+        icon: "ShieldCheck",
+        notes: "Mantener en cuenta remunerada de alta liquidez"
+      },
+      {
+        id: "goal-2",
+        title: "Reforma Cocina & Placas Solares",
+        category: "Hogar",
+        targetAmount: 9500,
+        currentAmount: 3800,
+        deadline: "2028-05",
+        monthlyContribution: 200,
+        color: "amber",
+        icon: "Sun",
+        notes: "Presupuesto para placas fotovoltaicas y climatización eficiente"
+      },
+      {
+        id: "goal-3",
+        title: "Libertad Financiera / Cartera Jubilación 2045",
+        category: "Largo Plazo",
+        targetAmount: 150000,
+        currentAmount: 24000,
+        deadline: "2045-12",
+        monthlyContribution: 350,
+        color: "indigo",
+        icon: "TrendingUp",
+        notes: "Aportación mensual periódica a fondo indexado global"
+      }
     ],
     overrides: [
       {
@@ -143,7 +215,8 @@ export const initialSeedData = {
         "fin-5": { paid: true, date: "2026-08-10" },
         "fin-6": { paid: true, date: "2026-08-08" },
         "fin-9": { paid: true, date: "2026-08-03" },
-        "fin-10": { paid: false, date: null }
+        "fin-10": { paid: false, date: null },
+        "fin-12": { paid: true, date: "2026-08-05" }
       }
     }
   },

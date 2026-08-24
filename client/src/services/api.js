@@ -179,6 +179,83 @@ export const api = {
     });
     return handleResponse(res);
   },
+  async getLongTermProjection(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    const res = await fetch(`${BASE_URL}/finance/long-term?${query}`);
+    return handleResponse(res);
+  },
+
+  // LOANS & MORTGAGES
+  async getLoans() {
+    const res = await fetch(`${BASE_URL}/finance/loans`);
+    return handleResponse(res);
+  },
+  async addLoan(loan) {
+    const res = await fetch(`${BASE_URL}/finance/loans`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loan)
+    });
+    return handleResponse(res);
+  },
+  async updateLoan(id, updates) {
+    const res = await fetch(`${BASE_URL}/finance/loans/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    return handleResponse(res);
+  },
+  async deleteLoan(id) {
+    const res = await fetch(`${BASE_URL}/finance/loans/${id}`, {
+      method: 'DELETE'
+    });
+    return handleResponse(res);
+  },
+  async simulateLoanAmortization(id, extraAmount, mode) {
+    const res = await fetch(`${BASE_URL}/finance/loans/${id}/simulate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ extraAmount, mode })
+    });
+    return handleResponse(res);
+  },
+
+  // SAVINGS GOALS
+  async getGoals() {
+    const res = await fetch(`${BASE_URL}/finance/goals`);
+    return handleResponse(res);
+  },
+  async addGoal(goal) {
+    const res = await fetch(`${BASE_URL}/finance/goals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(goal)
+    });
+    return handleResponse(res);
+  },
+  async updateGoal(id, updates) {
+    const res = await fetch(`${BASE_URL}/finance/goals/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    return handleResponse(res);
+  },
+  async deleteGoal(id) {
+    const res = await fetch(`${BASE_URL}/finance/goals/${id}`, {
+      method: 'DELETE'
+    });
+    return handleResponse(res);
+  },
+  async contributeGoal(id, amount) {
+    const res = await fetch(`${BASE_URL}/finance/goals/${id}/contribute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount })
+    });
+    return handleResponse(res);
+  },
 
   // DOMOTICS
   async getDomotics() {
