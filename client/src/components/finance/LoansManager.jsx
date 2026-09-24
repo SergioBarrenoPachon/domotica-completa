@@ -455,9 +455,14 @@ export default function LoansManager({ api, onRefresh }) {
                       </div>
 
                       {loan.monthlyPayment > 0 ? (
-                        <span className="text-xs px-3 py-1 rounded-xl bg-white/[0.06] border border-white/10 text-slate-200 font-mono font-bold shadow-sm whitespace-nowrap">
-                          {loan.monthlyPayment.toFixed(2)}€ / mes
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-xs px-3 py-1 rounded-xl bg-white/[0.06] border border-white/10 text-slate-200 font-mono font-bold shadow-sm whitespace-nowrap">
+                            {Number(loan.monthlyPayment).toFixed(2)}€ / mes
+                          </span>
+                          <span className="text-[10px] text-cyan-300 font-mono flex items-center gap-1">
+                            📅 En calendario (día {loan.dayOfMonth || 1})
+                          </span>
+                        </div>
                       ) : (
                         <span className="text-xs px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold whitespace-nowrap">
                           Sin cuota fija

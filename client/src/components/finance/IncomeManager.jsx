@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   TrendingUp, 
   Plus, 
@@ -15,7 +15,16 @@ import {
   ChevronUp,
   SlidersHorizontal,
   Wallet,
-  CalendarRange
+  CalendarRange,
+  Zap,
+  Tag,
+  Coins,
+  Receipt,
+  Layers,
+  CheckCircle2,
+  Building2,
+  Gift,
+  DollarSign
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../Modal';
@@ -35,11 +44,25 @@ const MONTH_NAMES = [
   { num: 12, name: 'Diciembre (Paga Extra de Navidad)', short: 'Diciembre' }
 ];
 
+const PRESET_CONCEPTS = [
+  { name: 'Devolución IRPF / Hacienda', icon: '🏛️', color: 'from-cyan-500/20 to-blue-500/10 border-cyan-400/30 text-cyan-300' },
+  { name: 'Ventas Segunda Mano (Wallapop / Vinted)', icon: '📦', color: 'from-emerald-500/20 to-teal-500/10 border-emerald-400/30 text-emerald-300' },
+  { name: 'Trabajos Extra / Proyectos Freelance', icon: '💻', color: 'from-indigo-500/20 to-purple-500/10 border-indigo-400/30 text-indigo-300' },
+  { name: 'Bonus / Gratificaciones Puntuales', icon: '⭐', color: 'from-amber-500/20 to-yellow-500/10 border-amber-400/30 text-amber-300' },
+  { name: 'Regalos & Familiares', icon: '🎁', color: 'from-pink-500/20 to-rose-500/10 border-pink-400/30 text-pink-300' },
+  { name: 'Reembolsos & Devoluciones de Compras', icon: '🔄', color: 'from-sky-500/20 to-blue-500/10 border-sky-400/30 text-sky-300' },
+  { name: 'Premios & Loterías', icon: '🍀', color: 'from-rose-500/20 to-red-500/10 border-rose-400/30 text-rose-300' },
+  { name: 'Otros Ingresos Extraordinarios', icon: '💶', color: 'from-slate-500/20 to-gray-500/10 border-slate-400/30 text-slate-300' }
+];
+
 export default function IncomeManager({ api, currentMonth, onDataChanged }) {
   const [incomes, setIncomes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Modals
+  // Active Sub-Tab: 'all' | 'recurring' | 'punctual'
+  const [activeTab, setActiveTab] = useState('all');
+
+  // Modals for Recurring Payrolls
   const [isAddIncomeModalOpen, setIsAddIncomeModalOpen] = useState(false);
   const [isTramoModalOpen, setIsTramoModalOpen] = useState(false);
   const [selectedIncomeForTramo, setSelectedIncomeForTramo] = useState(null);
@@ -57,7 +80,20 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
     notes: 'Paga extra'
   });
 
-  // Form states
+  // Modal for Punctual Incomes
+  const [isPunctualModalOpen, setIsPunctualModalOpen] = useState(false);
+  const [editingPunctual, setEditingPunctual] = useState(null);
+  const [punctualForm, setPunctualForm] = useState({
+    title: '',
+    category: 'Devolución IRPF / Hacienda',
+    customCategory: '',
+    amount: '',
+    date: new Date().toISOString().slice(0, 10),
+    notes: '',
+    isPaid: true
+  });
+
+  // Form states for recurring
   const [incomeForm, setIncomeForm] = useState({
     title: '',
     amount: '',
@@ -80,6 +116,7 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
   });
 
   const [expandedIncomes, setExpandedIncomes] = useState({});
+  const [expandedConcepts, setExpandedConcepts] = useState({});
 
   useEffect(() => {
     loadIncomes();
@@ -98,10 +135,69 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
     }
   };
 
+  const formatMoney = (val) => {
+    const num = Math.round((Number(val) || 0) * 100) / 100;
+    return num.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  // Separa recurrentes de puntuales
+  const recurringIncomes = useMemo(() => {
+    return incomes.filter(i => i.frequency !== 'puntual');
+  }, [incomes]);
+
+  const punctualIncomes = useMemo(() => {
+    return incomes.filter(i => i.frequency === 'puntual');
+  }, [incomes]);
+
+  // Agrupación de ingresos puntuales por concepto
+  const groupedPunctual = useMemo(() => {
+    const groups = {};
+    punctualIncomes.forEach(inc => {
+      const conceptKey = inc.category || inc.title || 'Otros Ingresos Extraordinarios';
+      if (!groups[conceptKey]) {
+        const preset = PRESET_CONCEPTS.find(p => p.name.toLowerCase() === conceptKey.toLowerCase());
+        groups[conceptKey] = {
+          concept: conceptKey,
+          icon: preset ? preset.icon : '💶',
+          styleClass: preset ? preset.color : 'from-slate-500/20 to-gray-500/10 border-slate-400/30 text-slate-300',
+          items: [],
+          totalAmount: 0,
+          thisMonthAmount: 0,
+          latestDate: null
+        };
+      }
+      groups[conceptKey].items.push(inc);
+      const amt = Number(inc.amount) || 0;
+      groups[conceptKey].totalAmount += amt;
+
+      const incMonth = inc.startDate ? inc.startDate.slice(0, 7) : '';
+      if (incMonth === currentMonth) {
+        groups[conceptKey].thisMonthAmount += amt;
+      }
+
+      if (!groups[conceptKey].latestDate || (inc.startDate && inc.startDate > groups[conceptKey].latestDate)) {
+        groups[conceptKey].latestDate = inc.startDate;
+      }
+    });
+
+    Object.values(groups).forEach(g => {
+      g.items.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+      g.totalAmount = Math.round(g.totalAmount * 100) / 100;
+      g.thisMonthAmount = Math.round(g.thisMonthAmount * 100) / 100;
+    });
+
+    return Object.values(groups).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [punctualIncomes, currentMonth]);
+
   const toggleExpand = (id) => {
     setExpandedIncomes(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const toggleConceptExpand = (concept) => {
+    setExpandedConcepts(prev => ({ ...prev, [concept]: !prev[concept] }));
+  };
+
+  // --- RECURRING HANDLERS ---
   const handleSaveIncome = async (e) => {
     e.preventDefault();
     if (!incomeForm.title || !incomeForm.amount) return;
@@ -138,7 +234,7 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
       loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error guardando ingreso: ' + err.message);
+      alert('Error guardando nómina: ' + err.message);
     }
   };
 
@@ -216,7 +312,7 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
       title: extra.title || 'Paga Extra',
       month: Number(extra.month) || 6,
       dayOfMonth: Number(extra.dayOfMonth) || 25,
-      amount: String(extra.amount || ''),
+      amount: String(extra.amount || income.amount || ''),
       notes: extra.notes || ''
     });
     setIsExtraModalOpen(true);
@@ -224,45 +320,41 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
 
   const handleSaveExtra = async (e) => {
     e.preventDefault();
-    if (!selectedIncomeForExtra || !extraForm.amount || !extraForm.title) return;
+    if (!selectedIncomeForExtra || !extraForm.amount) return;
 
     try {
       const currentExtras = Array.isArray(selectedIncomeForExtra.extraPays) ? [...selectedIncomeForExtra.extraPays] : [];
       const cleanAmount = parseFloat(String(extraForm.amount).replace(',', '.'));
-      const cleanMonth = parseInt(extraForm.month, 10) || 6;
-      const cleanDay = Math.min(31, Math.max(1, parseInt(extraForm.dayOfMonth, 10) || 25));
+      const safeMonth = Math.min(12, Math.max(1, parseInt(extraForm.month, 10) || 6));
+      const safeDay = Math.min(31, Math.max(1, parseInt(extraForm.dayOfMonth, 10) || 25));
 
-      let updatedExtras;
       if (editingExtraPay) {
-        updatedExtras = currentExtras.map(ex => {
-          if (ex.id === editingExtraPay.id) {
-            return {
-              ...ex,
-              title: extraForm.title.trim(),
-              month: cleanMonth,
-              dayOfMonth: cleanDay,
-              amount: cleanAmount,
-              notes: extraForm.notes
-            };
-          }
-          return ex;
-        });
+        const idx = currentExtras.findIndex(x => x.id === editingExtraPay.id);
+        if (idx >= 0) {
+          currentExtras[idx] = {
+            ...currentExtras[idx],
+            title: extraForm.title.trim() || 'Paga Extra',
+            month: safeMonth,
+            dayOfMonth: safeDay,
+            amount: cleanAmount,
+            notes: extraForm.notes.trim()
+          };
+        }
       } else {
-        const newExtra = {
-          id: `extra-${Date.now()}`,
-          title: extraForm.title.trim(),
-          month: cleanMonth,
-          dayOfMonth: cleanDay,
+        currentExtras.push({
+          id: `extra-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          title: extraForm.title.trim() || 'Paga Extra',
+          month: safeMonth,
+          dayOfMonth: safeDay,
           amount: cleanAmount,
-          notes: extraForm.notes
-        };
-        updatedExtras = [...currentExtras, newExtra];
+          notes: extraForm.notes.trim()
+        });
       }
 
-      updatedExtras.sort((a, b) => (a.month - b.month) || (a.dayOfMonth - b.dayOfMonth));
+      currentExtras.sort((a, b) => a.month - b.month);
 
       await api.updateFinanceTransaction(selectedIncomeForExtra.id, {
-        extraPays: updatedExtras
+        extraPays: currentExtras
       });
 
       setIsExtraModalOpen(false);
@@ -276,9 +368,9 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
   };
 
   const handleDeleteExtra = async (income, extraId) => {
-    if (!confirm('¿Eliminar esta paga extra configurada?')) return;
+    if (!confirm('¿Eliminar esta paga extra programada?')) return;
     try {
-      const updatedExtras = (income.extraPays || []).filter(ex => ex.id !== extraId);
+      const updatedExtras = (income.extraPays || []).filter(x => x.id !== extraId);
       await api.updateFinanceTransaction(income.id, { extraPays: updatedExtras });
       loadIncomes();
       if (onDataChanged) onDataChanged();
@@ -287,21 +379,110 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
     }
   };
 
-  const handleDeleteIncome = async (id) => {
-    if (!confirm('¿Seguro que deseas eliminar este ingreso y todo su histórico de nóminas?')) return;
+  const handleDeleteIncome = async (id, title) => {
+    if (!confirm(`¿Eliminar la nómina o ingreso "${title}"?`)) return;
     try {
       await api.deleteFinanceTransaction(id);
       loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error: ' + err.message);
+      alert('Error eliminando ingreso: ' + err.message);
     }
   };
 
-  // Cálculo de estadísticas
-  const totalMonthlyIncome = incomes.reduce((sum, inc) => {
+  // --- PUNCTUAL INCOME HANDLERS ---
+  const handleOpenAddPunctual = (presetConcept = null) => {
+    setEditingPunctual(null);
+    setPunctualForm({
+      title: '',
+      category: presetConcept || 'Devolución IRPF / Hacienda',
+      customCategory: '',
+      amount: '',
+      date: new Date().toISOString().slice(0, 10),
+      notes: '',
+      isPaid: true
+    });
+    setIsPunctualModalOpen(true);
+  };
+
+  const handleOpenEditPunctual = (item) => {
+    setEditingPunctual(item);
+    const isPreset = PRESET_CONCEPTS.some(p => p.name === item.category);
+    setPunctualForm({
+      title: item.title || '',
+      category: isPreset ? item.category : 'custom',
+      customCategory: isPreset ? '' : (item.category || ''),
+      amount: String(item.amount || ''),
+      date: item.startDate ? item.startDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
+      notes: item.notes || '',
+      isPaid: Boolean(item.paid)
+    });
+    setIsPunctualModalOpen(true);
+  };
+
+  const handleSavePunctual = async (e) => {
+    e.preventDefault();
+    if (!punctualForm.title || !punctualForm.amount) return;
+
+    const cleanAmt = parseFloat(String(punctualForm.amount).replace(',', '.'));
+    if (isNaN(cleanAmt) || cleanAmt <= 0) {
+      alert('Introduce un importe válido para el ingreso puntual');
+      return;
+    }
+
+    const finalCategory = punctualForm.category === 'custom' 
+      ? (punctualForm.customCategory.trim() || 'Otros Ingresos Extraordinarios')
+      : punctualForm.category;
+
+    const dateParts = punctualForm.date.split('-');
+    const day = parseInt(dateParts[2], 10) || 1;
+    const monthNum = parseInt(dateParts[1], 10) || 1;
+
+    const payload = {
+      title: punctualForm.title.trim(),
+      amount: cleanAmt,
+      type: 'ingreso',
+      category: finalCategory,
+      frequency: 'puntual',
+      dayOfMonth: day,
+      monthOfYear: monthNum,
+      startDate: punctualForm.date,
+      endDate: punctualForm.date,
+      isIndefinite: false,
+      notes: punctualForm.notes ? punctualForm.notes.trim() : '',
+      initialPaid: Boolean(punctualForm.isPaid)
+    };
+
+    try {
+      if (editingPunctual) {
+        await api.updateFinanceTransaction(editingPunctual.id, payload);
+      } else {
+        await api.addFinanceTransaction(payload);
+      }
+
+      setIsPunctualModalOpen(false);
+      setEditingPunctual(null);
+      loadIncomes();
+      if (onDataChanged) onDataChanged();
+    } catch (err) {
+      alert('Error guardando ingreso puntual: ' + err.message);
+    }
+  };
+
+  const handleDeletePunctual = async (id, title) => {
+    if (!confirm(`¿Eliminar el registro de ingreso puntual "${title}"?`)) return;
+    try {
+      await api.deleteFinanceTransaction(id);
+      loadIncomes();
+      if (onDataChanged) onDataChanged();
+    } catch (err) {
+      alert('Error eliminando ingreso: ' + err.message);
+    }
+  };
+
+  // --- CÁLCULO DE TOTALES GLOBALES ---
+  const totalMonthlyIncome = recurringIncomes.reduce((sum, inc) => {
     if (!inc.active) return sum;
-    // Si tiene tramos activos para el mes actual
     let amt = Number(inc.amount) || 0;
     if (Array.isArray(inc.rateSteps) && inc.rateSteps.length > 0) {
       const match = inc.rateSteps.find(s => {
@@ -314,580 +495,873 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
     return sum + amt;
   }, 0);
 
-  const totalAnnualized = totalMonthlyIncome * 12;
+  const totalPunctualThisMonth = punctualIncomes.reduce((sum, inc) => {
+    const m = inc.startDate ? inc.startDate.slice(0, 7) : '';
+    return m === currentMonth ? sum + (Number(inc.amount) || 0) : sum;
+  }, 0);
+
+  const totalPunctualAllTime = punctualIncomes.reduce((sum, inc) => sum + (Number(inc.amount) || 0), 0);
+  const totalIncomeThisMonth = totalMonthlyIncome + totalPunctualThisMonth;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       
-      {/* 1. Header con métricas y botón añadir */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* 1. Header con métricas y botones principales */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-xl sm:text-2xl font-black text-white font-display flex items-center gap-2">
-            <span className="w-9 h-9 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+          <h3 className="text-xl sm:text-2xl font-black text-white font-display flex items-center gap-2.5">
+            <span className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-inner-light">
               <TrendingUp className="w-5 h-5" />
             </span>
             Gestión de Ingresos & Nóminas
           </h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Control de salarios, pagas extraordinarias y registro de subidas de sueldo por periodos y fechas.
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            Nóminas periódicas con tramos salariales, pagas extras y registro de ingresos puntuales agrupados por concepto.
           </p>
         </div>
 
+        {/* Botones de creación rápida */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => handleOpenAddPunctual()}
+            className="min-h-touch px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/30 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all touch-press shadow-sm"
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>+ Ingreso Puntual</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingIncome(null);
+              setIncomeForm({
+                title: '',
+                amount: '',
+                category: 'Nóminas',
+                frequency: 'mensual',
+                dayOfMonth: 28,
+                monthOfYear: 1,
+                startDate: new Date().toISOString().slice(0, 7),
+                endDate: '',
+                isIndefinite: true,
+                notes: ''
+              });
+              setIsAddIncomeModalOpen(true);
+            }}
+            className="min-h-touch px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all touch-press"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>+ Nueva Nómina</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Tarjetas de Resumen KPI */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="p-4 sm:p-5 rounded-3xl bg-white/[0.04] border border-white/10 shadow-inner-light">
+          <div className="flex items-center justify-between">
+            <span className="text-[10.5px] text-emerald-400 font-bold uppercase tracking-wider block font-display">
+              💼 Nóminas Fijas (Mes)
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-mono">
+              {recurringIncomes.filter(i => i.active).length} activas
+            </span>
+          </div>
+          <p className="text-2xl sm:text-3xl font-black font-mono text-white mt-1.5">
+            +{formatMoney(totalMonthlyIncome)} €
+          </p>
+          <span className="text-[11px] text-slate-400 block mt-0.5 font-display">
+            Salarios fijos ordinarios mensuales
+          </span>
+        </div>
+
+        <div className="p-4 sm:p-5 rounded-3xl bg-white/[0.04] border border-white/10 shadow-inner-light">
+          <div className="flex items-center justify-between">
+            <span className="text-[10.5px] text-amber-400 font-bold uppercase tracking-wider block font-display">
+              ⚡ Puntuales (Este Mes)
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-mono">
+              {punctualIncomes.filter(i => (i.startDate || '').slice(0, 7) === currentMonth).length} en {currentMonth}
+            </span>
+          </div>
+          <p className="text-2xl sm:text-3xl font-black font-mono text-amber-300 mt-1.5">
+            +{formatMoney(totalPunctualThisMonth)} €
+          </p>
+          <span className="text-[11px] text-slate-400 block mt-0.5 font-display">
+            Total histórico: +{formatMoney(totalPunctualAllTime)} € en {groupedPunctual.length} conceptos
+          </span>
+        </div>
+
+        <div className="p-4 sm:p-5 rounded-3xl bg-white/[0.04] border border-white/10 shadow-inner-light">
+          <div className="flex items-center justify-between">
+            <span className="text-[10.5px] text-cyan-400 font-bold uppercase tracking-wider block font-display">
+              🏁 Previsión Total ({currentMonth})
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 font-mono">
+              Fijos + Puntuales
+            </span>
+          </div>
+          <p className="text-2xl sm:text-3xl font-black font-mono text-cyan-300 mt-1.5">
+            +{formatMoney(totalIncomeThisMonth)} €
+          </p>
+          <span className="text-[11px] text-slate-400 block mt-0.5 font-display">
+            Ingresos computados este mes
+          </span>
+        </div>
+      </div>
+
+      {/* 3. Selector de Subpestañas iOS Segmented Control */}
+      <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/[0.04] border border-white/8 max-w-xl">
         <button
-          onClick={() => {
-            setEditingIncome(null);
-            setIncomeForm({
-              title: '',
-              amount: '',
-              category: 'Nóminas',
-              frequency: 'mensual',
-              dayOfMonth: 28,
-              monthOfYear: 1,
-              startDate: new Date().toISOString().slice(0, 7),
-              endDate: '',
-              isIndefinite: true,
-              notes: ''
-            });
-            setIsAddIncomeModalOpen(true);
-          }}
-          className="min-h-touch px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all touch-press"
+          onClick={() => setActiveTab('all')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+            activeTab === 'all'
+              ? 'bg-white/15 text-white shadow-sm'
+              : 'text-slate-400 hover:text-white'
+          }`}
         >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>+ Nuevo Ingreso / Nómina</span>
+          <Layers className="w-3.5 h-3.5" />
+          <span>Todos ({incomes.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('recurring')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+            activeTab === 'recurring'
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Nóminas ({recurringIncomes.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('punctual')}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+            activeTab === 'punctual'
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <span>Puntuales ({punctualIncomes.length})</span>
         </button>
       </div>
 
-      {/* 2. Tarjetas de Resumen */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="p-4 rounded-3xl bg-white/[0.04] border border-white/10 shadow-inner-light">
-          <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block font-display">
-            Nóminas / Ingresos Activos
-          </span>
-          <p className="text-2xl font-black font-mono text-white mt-1">
-            +{totalMonthlyIncome.toFixed(2)} €
-          </p>
-          <span className="text-[11px] text-slate-400 block mt-0.5">
-            Total en mes en vigor ({incomes.filter(i => i.active).length} fuentes)
-          </span>
-        </div>
+      {/* 4. SECCIÓN A: INGRESOS PUNTUALES ORGANIZADOS POR CONCEPTO */}
+      {(activeTab === 'all' || activeTab === 'punctual') && (
+        <div className="space-y-4 pt-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+                <Sparkles className="w-4 h-4" />
+              </span>
+              <div>
+                <h4 className="text-lg font-bold text-white font-display">
+                  Ingresos Puntuales por Concepto
+                </h4>
+                <p className="text-xs text-slate-400">
+                  Organizados por fuente: Hacienda, ventas de segunda mano, trabajos extra y devoluciones.
+                </p>
+              </div>
+            </div>
 
-        <div className="p-4 rounded-3xl bg-white/[0.04] border border-white/10 shadow-inner-light">
-          <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider block font-display">
-            Previsión Anual Bruta
-          </span>
-          <p className="text-2xl font-black font-mono text-cyan-300 mt-1">
-            +{totalAnnualized.toFixed(2)} €
-          </p>
-          <span className="text-[11px] text-slate-400 block mt-0.5">
-            Proyección anualizada a 12 meses
-          </span>
-        </div>
-
-        <div className="p-4 rounded-3xl bg-white/[0.04] border border-white/10 shadow-inner-light">
-          <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block font-display">
-            Tramos Salariales Registrados
-          </span>
-          <p className="text-2xl font-black font-mono text-amber-300 mt-1">
-            {incomes.reduce((s, i) => s + ((i.rateSteps && i.rateSteps.length) || 0), 0)} tramos
-          </p>
-          <span className="text-[11px] text-slate-400 block mt-0.5">
-            Histórico y subidas programadas
-          </span>
-        </div>
-      </div>
-
-      {/* 3. Listado de Ingresos con Tramos */}
-      {incomes.length === 0 ? (
-        <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/10 text-center space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
-            <Briefcase className="w-6 h-6" />
+            <button
+              onClick={() => handleOpenAddPunctual()}
+              className="px-3.5 py-1.5 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 text-amber-300 border border-amber-400/30 text-xs font-bold flex items-center gap-1.5 transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Añadir Registro</span>
+            </button>
           </div>
-          <p className="text-sm font-bold text-white">No hay ingresos registrados todavía</p>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            Añade tu nómina o fuentes de ingresos habituales para que el sistema empiece a predecir tu saldo mensual.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {incomes.map((income) => {
-            const tramos = Array.isArray(income.rateSteps) ? income.rateSteps : [];
-            const extraPays = Array.isArray(income.extraPays) ? income.extraPays : [];
-            const isExpanded = Boolean(expandedIncomes[income.id]);
 
-            // Determinar importe en vigor para este mes
-            let currentAmt = Number(income.amount) || 0;
-            let currentTramo = null;
-            if (tramos.length > 0) {
-              const match = tramos.find(s => {
-                if (s.startDate && currentMonth < s.startDate.slice(0, 7)) return false;
-                if (s.endDate && currentMonth > s.endDate.slice(0, 7)) return false;
-                return true;
-              });
-              if (match) {
-                currentAmt = Number(match.amount);
-                currentTramo = match;
-              }
-            }
-
-            return (
-              <div 
-                key={income.id}
-                className="p-4 sm:p-5 rounded-3xl bg-white/[0.04] border border-white/10 space-y-3.5 transition-all hover:bg-white/[0.06]"
+          {groupedPunctual.length === 0 ? (
+            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/8 text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
+                <Coins className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-white">No hay ingresos puntuales registrados</p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Registra ventas de segunda mano (Wallapop), devoluciones de Hacienda, bonus o trabajos freelance para tener un historial agrupado por concepto.
+              </p>
+              <button
+                onClick={() => handleOpenAddPunctual()}
+                className="mt-2 px-4 py-2 rounded-2xl bg-amber-500 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 transition-all touch-press"
               >
-                {/* Cabecera del ingreso */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="font-extrabold text-white text-base font-display">
-                        {income.title}
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
-                        +{currentAmt.toFixed(2)} € / {income.frequency}
-                      </span>
-                      {currentTramo && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/25 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3" />
-                          <span>Tramo activo: {currentTramo.notes || 'Subida'}</span>
+                + Registrar Primer Ingreso Puntual
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {groupedPunctual.map((group) => {
+                const isExpanded = Boolean(expandedConcepts[group.concept]);
+
+                return (
+                  <div
+                    key={group.concept}
+                    className="p-5 rounded-3xl bg-white/[0.04] border border-white/10 space-y-4 hover:border-white/20 transition-all shadow-ambient-sm"
+                  >
+                    {/* Header de la tarjeta del concepto */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl p-2 rounded-2xl bg-white/[0.06] border border-white/10">
+                          {group.icon}
                         </span>
-                      )}
+                        <div>
+                          <h5 className="font-extrabold text-white text-base font-display">
+                            {group.concept}
+                          </h5>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-slate-400 font-mono">
+                              {group.items.length} {group.items.length === 1 ? 'registro' : 'registros'}
+                            </span>
+                            {group.thisMonthAmount > 0 && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-semibold border border-emerald-500/30">
+                                Este mes: +{formatMoney(group.thisMonthAmount)}€
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Total acumulado del concepto */}
+                      <div className="text-right">
+                        <span className="text-xl sm:text-2xl font-black font-mono text-emerald-400 block tracking-tight">
+                          +{formatMoney(group.totalAmount)} €
+                        </span>
+                        <span className="text-[10px] text-slate-400 uppercase font-display font-medium">
+                          Total Cobrado
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-400">
-                      <span>Día habitual: <strong>Día {income.dayOfMonth || 28}</strong></span>
-                      <span>•</span>
-                      <span>Categoría: <strong>{income.category || 'Nóminas'}</strong></span>
-                      {extraPays.length > 0 && (
-                        <>
-                          <span>•</span>
-                          <span className="text-emerald-400 font-bold">🎁 {extraPays.length} {extraPays.length === 1 ? 'Paga Extra' : 'Pagas Extras'}</span>
-                        </>
-                      )}
-                      {income.notes && (
-                        <>
-                          <span>•</span>
-                          <span className="italic">{income.notes}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Acciones principales */}
-                  <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-                    {/* Botón Añadir Paga Extra */}
-                    <button
-                      type="button"
-                      onClick={() => handleOpenAddExtra(income)}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 transition-all touch-press"
-                      title="Añadir paga extra manual (verano, navidad, etc.) con mes y día exactos"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>+ Paga Extra</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenAddTramo(income)}
-                      className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 transition-all touch-press"
-                      title="Añadir subida salarial o tramo temporal a esta nómina"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>+ Subida / Tramo</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingIncome(income);
-                        setIncomeForm({
-                          title: income.title,
-                          amount: income.amount,
-                          category: income.category || 'Nóminas',
-                          frequency: income.frequency || 'mensual',
-                          dayOfMonth: income.dayOfMonth || 28,
-                          monthOfYear: income.monthOfYear || 1,
-                          startDate: income.startDate || '',
-                          endDate: income.endDate || '',
-                          isIndefinite: income.isIndefinite !== false,
-                          notes: income.notes || ''
-                        });
-                        setIsAddIncomeModalOpen(true);
-                      }}
-                      className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white border border-white/10 transition-colors"
-                      title="Editar datos básicos"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteIncome(income.id)}
-                      className="p-2 rounded-xl bg-white/[0.06] hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-white/10 transition-colors"
-                      title="Eliminar ingreso"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-
-                    {tramos.length > 0 && (
+                    {/* Botones de acción rápida del concepto */}
+                    <div className="flex items-center justify-between pt-2 border-t border-white/8 text-xs">
                       <button
-                        type="button"
-                        onClick={() => toggleExpand(income.id)}
-                        className="px-2.5 py-1.5 rounded-xl bg-white/[0.06] text-slate-300 text-xs font-semibold flex items-center gap-1 border border-white/10"
+                        onClick={() => handleOpenAddPunctual(group.concept)}
+                        className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-amber-300 font-semibold flex items-center gap-1.5 transition-all"
                       >
-                        <span>{tramos.length} {tramos.length === 1 ? 'tramo' : 'tramos'}</span>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Añadir a {group.concept.split(' ')[0]}</span>
+                      </button>
+
+                      <button
+                        onClick={() => toggleConceptExpand(group.concept)}
+                        className="px-3 py-1.5 rounded-xl text-slate-300 hover:text-white flex items-center gap-1 font-medium transition-all"
+                      >
+                        <span>{isExpanded ? 'Ocultar cobros' : `Ver registros (${group.items.length})`}</span>
                         {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                       </button>
+                    </div>
+
+                    {/* Desglose desplegable de registros individuales de este concepto */}
+                    {isExpanded && (
+                      <div className="pt-2 space-y-2 border-t border-white/8">
+                        {group.items.map((item) => {
+                          const dateLabel = item.startDate 
+                            ? new Date(item.startDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : 'Sin fecha';
+
+                          return (
+                            <div
+                              key={item.id}
+                              className="p-3 rounded-2xl bg-white/[0.03] border border-white/6 flex items-center justify-between gap-3 hover:bg-white/[0.06] transition-all"
+                            >
+                              <div className="space-y-0.5 min-w-0">
+                                <p className="text-sm font-bold text-white truncate font-display">
+                                  {item.title}
+                                </p>
+                                <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                                  <span className="font-mono text-slate-300">{dateLabel}</span>
+                                  {item.notes && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="truncate max-w-[150px]">{item.notes}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 flex-shrink-0">
+                                <span className="font-mono font-bold text-sm text-emerald-300">
+                                  +{formatMoney(item.amount)} €
+                                </span>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => handleOpenEditPunctual(item)}
+                                    className="p-1.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                    title="Editar cobro"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeletePunctual(item.id, item.title)}
+                                    className="p-1.5 rounded-xl hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all"
+                                    title="Eliminar cobro"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
-                </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
-                {/* Sección de Pagas Extras Programadas */}
-                <div className="pt-3 border-t border-white/10 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold text-emerald-300 uppercase tracking-wider font-display flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Pagas Extras de esta Nómina ({extraPays.length})</span>
-                      </span>
-                      {extraPays.length === 0 && (
-                        <span className="text-[10.5px] text-slate-500 font-mono">
-                          (12 pagas ordinarias)
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenAddExtra(income)}
-                      className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Añadir Paga Extra</span>
-                    </button>
-                  </div>
+      {/* 5. SECCIÓN B: NÓMINAS & SALARIOS PERIÓDICOS (CON TRAMOS Y PAGAS EXTRAS) */}
+      {(activeTab === 'all' || activeTab === 'recurring') && (
+        <div className="space-y-4 pt-4 border-t border-white/10">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+                <Briefcase className="w-4 h-4" />
+              </span>
+              <div>
+                <h4 className="text-lg font-bold text-white font-display">
+                  Nóminas & Salarios Habituales
+                </h4>
+                <p className="text-xs text-slate-400">
+                  Control mensual, pagas extraordinarias y subidas de sueldo programadas por periodos.
+                </p>
+              </div>
+            </div>
 
-                  {extraPays.length === 0 ? (
-                    <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-slate-400">
-                      <span>Sin pagas extras registradas. Si cobras 14 o 15 pagas (verano, navidad, beneficios...), añade cada una en su mes y día exactos.</span>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenAddExtra(income)}
-                        className="self-start sm:self-auto px-3 py-1 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 font-bold text-xs whitespace-nowrap transition-colors"
-                      >
-                        + Configurar Paga Extra
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                      {extraPays.map((extra) => {
-                        const mObj = MONTH_NAMES.find(m => m.num === Number(extra.month));
-                        const mName = mObj ? mObj.short : `Mes ${extra.month}`;
-                        return (
-                          <div 
-                            key={extra.id}
-                            className="p-3 rounded-2xl bg-emerald-500/[0.07] border border-emerald-500/20 text-xs space-y-1.5 relative group hover:border-emerald-500/40 transition-all shadow-sm"
-                          >
-                            <div className="flex items-start justify-between gap-1">
-                              <div>
-                                <span className="font-bold text-white text-xs block font-display">
-                                  {extra.title}
-                                </span>
-                                <span className="text-[11px] text-emerald-300 font-semibold flex items-center gap-1 mt-0.5">
-                                  <Calendar className="w-3 h-3 text-emerald-400" />
-                                  <span>Día {extra.dayOfMonth || 25} de {mName}</span>
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenEditExtra(income, extra)}
-                                  className="p-1 rounded-lg text-slate-400 hover:text-amber-300 hover:bg-white/10 transition-colors"
-                                  title="Editar paga extra"
-                                >
-                                  <Edit3 className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteExtra(income, extra.id)}
-                                  className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-white/10 transition-colors"
-                                  title="Eliminar paga extra"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
+            <button
+              onClick={() => {
+                setEditingIncome(null);
+                setIncomeForm({
+                  title: '',
+                  amount: '',
+                  category: 'Nóminas',
+                  frequency: 'mensual',
+                  dayOfMonth: 28,
+                  monthOfYear: 1,
+                  startDate: new Date().toISOString().slice(0, 7),
+                  endDate: '',
+                  isIndefinite: true,
+                  notes: ''
+                });
+                setIsAddIncomeModalOpen(true);
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-1.5 transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Añadir Nómina</span>
+            </button>
+          </div>
 
-                            <div className="flex items-baseline justify-between pt-1 border-t border-emerald-500/15">
-                              <span className="text-[10px] text-slate-400 uppercase font-bold">Importe Extra:</span>
-                              <span className="font-extrabold text-emerald-400 font-mono text-sm">
-                                +{Number(extra.amount).toFixed(2)} €
+          {recurringIncomes.length === 0 ? (
+            <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/8 text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
+                <Briefcase className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-white">No hay nóminas recurrentes registradas</p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Añade tu nómina habitual para que el sistema empiece a predecir tu saldo mensual y contabilice tus pagas extras.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {recurringIncomes.map((income) => {
+                const tramos = Array.isArray(income.rateSteps) ? income.rateSteps : [];
+                const extraPays = Array.isArray(income.extraPays) ? income.extraPays : [];
+                const isExpanded = Boolean(expandedIncomes[income.id]);
+
+                let currentAmt = Number(income.amount) || 0;
+                let currentTramo = null;
+                if (tramos.length > 0) {
+                  const match = tramos.find(s => {
+                    if (s.startDate && currentMonth < s.startDate.slice(0, 7)) return false;
+                    if (s.endDate && currentMonth > s.endDate.slice(0, 7)) return false;
+                    return true;
+                  });
+                  if (match) {
+                    currentAmt = Number(match.amount);
+                    currentTramo = match;
+                  }
+                }
+
+                return (
+                  <div 
+                    key={income.id}
+                    className="p-4 sm:p-5 rounded-3xl bg-white/[0.04] border border-white/10 space-y-3.5 transition-all hover:bg-white/[0.06]"
+                  >
+                    {/* Cabecera del ingreso */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="font-extrabold text-white text-base font-display">
+                            {income.title}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 font-mono">
+                            +{formatMoney(currentAmt)} € / {income.frequency}
+                          </span>
+                          {currentTramo && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/25 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" />
+                              <span>Tramo activo: {currentTramo.notes || 'Subida'}</span>
+                            </span>
+                          )}
+                          {extraPays.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 flex items-center gap-1 font-mono">
+                              🎁 {extraPays.length} {extraPays.length === 1 ? 'paga extra' : 'pagas extras'}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-500" />
+                            Día {income.dayOfMonth || 28} de cada mes
+                          </span>
+                          <span>•</span>
+                          <span>Inicio: {income.startDate || 'Sin definir'}</span>
+                          {tramos.length > 0 && (
+                            <>
+                              <span>•</span>
+                              <span className="text-amber-400 font-semibold">
+                                {tramos.length} tramos salariales
                               </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
 
-                {/* Historial desplegable de Tramos Salariales */}
-                {tramos.length > 0 && isExpanded && (
-                  <div className="pt-3 border-t border-white/10 space-y-2">
-                    <h5 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider font-display flex items-center gap-1.5">
-                      <CalendarRange className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Evolución Salarial y Tramos de este Ingreso</span>
-                    </h5>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                      {tramos.map((tramo) => (
-                        <div 
-                          key={tramo.id}
-                          className="p-3 rounded-2xl bg-black/30 border border-white/10 text-xs space-y-1 relative group"
+                      {/* Botones de acción */}
+                      <div className="flex items-center gap-1.5 self-end sm:self-center">
+                        <button
+                          onClick={() => handleOpenAddExtra(income)}
+                          className="px-2.5 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 text-xs font-semibold flex items-center gap-1.5 transition-all touch-press"
+                          title="Añadir paga extra a esta nómina"
                         >
+                          <Gift className="w-3.5 h-3.5" />
+                          <span>+ Paga Extra</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenAddTramo(income)}
+                          className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 text-xs font-semibold flex items-center gap-1.5 transition-all touch-press"
+                          title="Añadir subida salarial o tramo por fechas"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5" />
+                          <span>+ Subida / Tramo</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setEditingIncome(income);
+                            setIncomeForm({
+                              title: income.title,
+                              amount: String(income.amount || ''),
+                              category: income.category || 'Nóminas',
+                              frequency: income.frequency || 'mensual',
+                              dayOfMonth: income.dayOfMonth || 28,
+                              monthOfYear: income.monthOfYear || 1,
+                              startDate: income.startDate || new Date().toISOString().slice(0, 7),
+                              endDate: income.endDate || '',
+                              isIndefinite: income.isIndefinite !== false,
+                              notes: income.notes || ''
+                            });
+                            setIsAddIncomeModalOpen(true);
+                          }}
+                          className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] text-slate-300 hover:text-white transition-all touch-press"
+                          title="Editar nómina base"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteIncome(income.id, income.title)}
+                          className="p-2 rounded-xl bg-white/[0.05] hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all touch-press"
+                          title="Eliminar nómina"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+
+                        {(tramos.length > 0 || extraPays.length > 0) && (
+                          <button
+                            onClick={() => toggleExpand(income.id)}
+                            className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] text-slate-300 transition-all touch-press"
+                            title="Desplegar detalles"
+                          >
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Desglose de Pagas Extras y Tramos */}
+                    {isExpanded && (
+                      <div className="pt-3 border-t border-white/8 space-y-4">
+                        
+                        {/* Bloque: Pagas Extras Manuales */}
+                        <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-emerald-400 font-mono text-sm">
-                              +{Number(tramo.amount).toFixed(2)} €
+                            <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5 font-display">
+                              <Gift className="w-3.5 h-3.5" />
+                              <span>Pagas Extras Programadas ({extraPays.length}):</span>
                             </span>
                             <button
-                              type="button"
-                              onClick={() => handleDeleteTramo(income, tramo.id)}
-                              className="text-slate-500 hover:text-rose-400 p-1 transition-colors"
-                              title="Eliminar tramo"
+                              onClick={() => handleOpenAddExtra(income)}
+                              className="text-[11px] text-cyan-400 hover:underline font-semibold"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              + Añadir otra paga extra
                             </button>
                           </div>
 
-                          <div className="text-[11px] text-slate-300 font-semibold">
-                            {tramo.startDate} ➔ {tramo.endDate || 'Actualidad / En vigor'}
-                          </div>
-
-                          {tramo.notes && (
-                            <p className="text-[10px] text-slate-400 italic">
-                              "{tramo.notes}"
+                          {extraPays.length === 0 ? (
+                            <p className="text-[11px] text-slate-400 italic bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
+                              No hay pagas extras configuradas para esta nómina. Pulsa "+ Paga Extra" para programar la de verano o navidad.
                             </p>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {extraPays.map((extra) => {
+                                const monthObj = MONTH_NAMES.find(m => m.num === Number(extra.month));
+                                return (
+                                  <div
+                                    key={extra.id}
+                                    className="p-2.5 rounded-2xl bg-cyan-500/10 border border-cyan-400/20 flex items-center justify-between gap-2"
+                                  >
+                                    <div>
+                                      <p className="text-xs font-bold text-white font-display">
+                                        {extra.title}
+                                      </p>
+                                      <p className="text-[11px] text-cyan-300/80 font-mono">
+                                        {monthObj ? monthObj.short : `Mes ${extra.month}`} (día {extra.dayOfMonth || 25})
+                                      </p>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-mono font-black text-cyan-300">
+                                        +{formatMoney(extra.amount)} €
+                                      </span>
+                                      <button
+                                        onClick={() => handleOpenEditExtra(income, extra)}
+                                        className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white"
+                                        title="Editar paga extra"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteExtra(income, extra.id)}
+                                        className="p-1 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400"
+                                        title="Eliminar paga extra"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
-              </div>
-            );
-          })}
+                        {/* Bloque: Tramos Salariales por Fechas */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5 font-display">
+                              <SlidersHorizontal className="w-3.5 h-3.5" />
+                              <span>Tramos Salariales y Subidas ({tramos.length}):</span>
+                            </span>
+                            <button
+                              onClick={() => handleOpenAddTramo(income)}
+                              className="text-[11px] text-amber-400 hover:underline font-semibold"
+                            >
+                              + Añadir subida salarial
+                            </button>
+                          </div>
+
+                          {tramos.length === 0 ? (
+                            <p className="text-[11px] text-slate-400 italic bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
+                              No hay tramos registrados. Esta nómina tiene un importe constante.
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {tramos.map((step) => {
+                                const isActiveNow = (!step.startDate || currentMonth >= step.startDate.slice(0, 7)) &&
+                                                    (!step.endDate || currentMonth <= step.endDate.slice(0, 7));
+
+                                return (
+                                  <div
+                                    key={step.id}
+                                    className={`p-2.5 rounded-2xl border flex items-center justify-between gap-2 ${
+                                      isActiveNow 
+                                        ? 'bg-amber-500/10 border-amber-400/30' 
+                                        : 'bg-white/[0.02] border-white/5 opacity-75'
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <p className="text-xs font-bold text-white font-display">
+                                          {step.notes || 'Tramo salarial'}
+                                        </p>
+                                        {isActiveNow && (
+                                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black">
+                                            ACTUAL
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[10.5px] text-slate-400 font-mono">
+                                        {step.startDate} {step.endDate ? `hasta ${step.endDate}` : 'en adelante'}
+                                      </p>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-mono font-black text-amber-300">
+                                        +{formatMoney(step.amount)} €
+                                      </span>
+                                      <button
+                                        onClick={() => handleDeleteTramo(income, step.id)}
+                                        className="p-1 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400"
+                                        title="Eliminar tramo"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* --- MODAL AÑADIR / EDITAR INGRESO --- */}
+      {/* --- MODAL 1: NUEVA / EDITAR NÓMINA BASE --- */}
       {isAddIncomeModalOpen && (
         <Modal
-          isOpen={isAddIncomeModalOpen}
+          isOpen={true}
           onClose={() => setIsAddIncomeModalOpen(false)}
-          title={editingIncome ? 'Editar Ingreso' : 'Nuevo Ingreso / Nómina'}
+          title={editingIncome ? 'Editar Nómina Habitual' : 'Registrar Nueva Nómina'}
         >
           <form onSubmit={handleSaveIncome} className="space-y-4">
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Título / Concepto de Nómina</label>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Nombre del Ingreso / Nómina *</label>
               <input
                 type="text"
                 required
-                placeholder="Ej: Nómina Sergio, Nómina María, Alquiler Piso"
                 value={incomeForm.title}
                 onChange={(e) => setIncomeForm({ ...incomeForm, title: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-emerald-400"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Importe Mensual (€)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej: 2150.00"
-                  value={incomeForm.amount}
-                  onChange={(e) => setIncomeForm({ ...incomeForm, amount: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm font-mono focus:outline-none focus:border-emerald-400"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Día Habitual de Cobro</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={incomeForm.dayOfMonth}
-                  onChange={(e) => setIncomeForm({ ...incomeForm, dayOfMonth: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-emerald-400"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Frecuencia</label>
-                <select
-                  value={incomeForm.frequency}
-                  onChange={(e) => setIncomeForm({ ...incomeForm, frequency: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-900 border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-emerald-400"
-                >
-                  <option value="mensual">Mensual</option>
-                  <option value="semestral">Paga Extra (Semestral)</option>
-                  <option value="anual">Anual</option>
-                  <option value="puntual">Puntual</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Categoría</label>
-                <input
-                  type="text"
-                  value={incomeForm.category}
-                  onChange={(e) => setIncomeForm({ ...incomeForm, category: e.target.value })}
-                  placeholder="Nóminas, Rendimientos, etc."
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-emerald-400"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Notas (Opcional)</label>
-              <input
-                type="text"
-                placeholder="Empresa, retención IRPF, etc."
-                value={incomeForm.notes}
-                onChange={(e) => setIncomeForm({ ...incomeForm, notes: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => setIsAddIncomeModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20"
-              >
-                {editingIncome ? 'Guardar Cambios' : 'Añadir Nómina'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* --- MODAL AÑADIR SUBIDA SALARIAL / TRAMO --- */}
-      {isTramoModalOpen && selectedIncomeForTramo && (
-        <Modal
-          isOpen={isTramoModalOpen}
-          onClose={() => setIsTramoModalOpen(false)}
-          title={`Añadir Subida Salarial a "${selectedIncomeForTramo.title}"`}
-        >
-          <form onSubmit={handleSaveTramo} className="space-y-4">
-            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200">
-              Permite registrar revisiones salariales o subidas por antigüedad con fecha de inicio y fin, de modo que los meses anteriores conserven el importe antiguo y los futuros el nuevo.
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Nuevo Sueldo Neto (€)</label>
-              <input
-                type="text"
-                required
-                placeholder="Ej: 2300.00"
-                value={tramoForm.amount}
-                onChange={(e) => setTramoForm({ ...tramoForm, amount: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm font-mono focus:outline-none focus:border-amber-400"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Vigente Desde (YYYY-MM)</label>
-                <input
-                  type="month"
-                  required
-                  value={tramoForm.startDate}
-                  onChange={(e) => setTramoForm({ ...tramoForm, startDate: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Hasta (Opcional)</label>
-                <input
-                  type="month"
-                  placeholder="En blanco si es indefinido"
-                  value={tramoForm.endDate}
-                  onChange={(e) => setTramoForm({ ...tramoForm, endDate: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-amber-400"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Motivo / Notas del Tramo</label>
-              <input
-                type="text"
-                placeholder="Ej: Subida por convenio 2026, ascenso a senior"
-                value={tramoForm.notes}
-                onChange={(e) => setTramoForm({ ...tramoForm, notes: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
-              <button
-                type="button"
-                onClick={() => setIsTramoModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20"
-              >
-                Guardar Tramo Salarial
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* --- MODAL AÑADIR / EDITAR PAGA EXTRA MANUAL --- */}
-      {isExtraModalOpen && selectedIncomeForExtra && (
-        <Modal
-          isOpen={isExtraModalOpen}
-          onClose={() => setIsExtraModalOpen(false)}
-          title={editingExtraPay ? `Editar Paga Extra: "${editingExtraPay.title}"` : `Añadir Paga Extra a "${selectedIncomeForExtra.title}"`}
-        >
-          <form onSubmit={handleSaveExtra} className="space-y-4">
-            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
-              Configura de manera manual el mes y día exactos de cobro de esta paga extra (ej. 25 de junio, 20 de diciembre...). Se reflejará automáticamente en el calendario de ese mes con su propio botón de cobro.
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Nombre / Título de la Paga Extra *</label>
-              <input
-                type="text"
-                required
-                placeholder="Ej: Paga Extra Verano, Paga Extra Navidad, Bonus Productividad..."
-                value={extraForm.title}
-                onChange={(e) => setExtraForm({ ...extraForm, title: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-emerald-400"
+                placeholder="Ej: Nómina Empresa Sergio, Nómina María..."
+                className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Mes de Cobro *</label>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Importe Mensual Neto (€) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={incomeForm.amount}
+                  onChange={(e) => setIncomeForm({ ...incomeForm, amount: e.target.value })}
+                  placeholder="2450.00"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Día del Mes que se Cobra (1-31) *</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  required
+                  value={incomeForm.dayOfMonth}
+                  onChange={(e) => setIncomeForm({ ...incomeForm, dayOfMonth: e.target.value })}
+                  placeholder="28"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Fecha de Inicio (AAAA-MM)</label>
+                <input
+                  type="text"
+                  value={incomeForm.startDate}
+                  onChange={(e) => setIncomeForm({ ...incomeForm, startDate: e.target.value })}
+                  placeholder="2024-01"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Categoría</label>
+                <input
+                  type="text"
+                  value={incomeForm.category}
+                  onChange={(e) => setIncomeForm({ ...incomeForm, category: e.target.value })}
+                  placeholder="Nóminas"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Notas</label>
+              <textarea
+                value={incomeForm.notes}
+                onChange={(e) => setIncomeForm({ ...incomeForm, notes: e.target.value })}
+                placeholder="Comentarios adicionales o retenciones..."
+                rows={2}
+                className="glass-input rounded-2xl px-3.5 py-2 text-white text-sm focus:border-white/30 outline-none w-full resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setIsAddIncomeModalOpen(false)}
+                className="px-4 py-2 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] text-white text-xs font-bold active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+              >
+                Guardar Nómina
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* --- MODAL 2: AÑADIR / EDITAR TRAMO SALARIAL --- */}
+      {isTramoModalOpen && (
+        <Modal
+          isOpen={true}
+          onClose={() => setIsTramoModalOpen(false)}
+          title={`Subida Salarial: ${selectedIncomeForTramo?.title || ''}`}
+        >
+          <form onSubmit={handleSaveTramo} className="space-y-4">
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
+              💡 <strong>Periodos salariales:</strong> Puedes definir que desde cierta fecha el sueldo subió a otro importe. El calendario calculará el sueldo exacto para cada mes automáticamente.
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Fecha Inicio del Tramo (AAAA-MM) *</label>
+                <input
+                  type="text"
+                  required
+                  value={tramoForm.startDate}
+                  onChange={(e) => setTramoForm({ ...tramoForm, startDate: e.target.value })}
+                  placeholder="2025-01"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Fecha Fin (Opcional, vacío = Indefinido)</label>
+                <input
+                  type="text"
+                  value={tramoForm.endDate}
+                  onChange={(e) => setTramoForm({ ...tramoForm, endDate: e.target.value })}
+                  placeholder="2025-12"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Nuevo Importe Neto Mensual (€) *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={tramoForm.amount}
+                onChange={(e) => setTramoForm({ ...tramoForm, amount: e.target.value })}
+                placeholder="2650.00"
+                className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Motivo / Notas del Tramo</label>
+              <input
+                type="text"
+                value={tramoForm.notes}
+                onChange={(e) => setTramoForm({ ...tramoForm, notes: e.target.value })}
+                placeholder="Ej: Subida IPC 3%, Promoción a Senior..."
+                className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setIsTramoModalOpen(false)}
+                className="px-4 py-2 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] text-white text-xs font-bold active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 active:scale-95 transition-all"
+              >
+                Guardar Tramo
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* --- MODAL 3: AÑADIR / EDITAR PAGA EXTRA MANUAL --- */}
+      {isExtraModalOpen && (
+        <Modal
+          isOpen={true}
+          onClose={() => {
+            setIsExtraModalOpen(false);
+            setEditingExtraPay(null);
+          }}
+          title={editingExtraPay ? 'Editar Paga Extra' : `Nueva Paga Extra: ${selectedIncomeForExtra?.title || ''}`}
+        >
+          <form onSubmit={handleSaveExtra} className="space-y-4">
+            <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-xs text-cyan-300">
+              🎁 <strong>Pagas extras exactas:</strong> Elige el mes exacto del año y el día de cobro. Si tienes dos, añade una en Junio y otra en Diciembre; si son tres, añade las tres.
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Concepto de la Paga Extra *</label>
+              <input
+                type="text"
+                required
+                value={extraForm.title}
+                onChange={(e) => setExtraForm({ ...extraForm, title: e.target.value })}
+                placeholder="Ej: Paga Extra Verano, Paga Extra Navidad..."
+                className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Mes en que se cobra *</label>
                 <select
                   value={extraForm.month}
                   onChange={(e) => setExtraForm({ ...extraForm, month: parseInt(e.target.value, 10) })}
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-900 border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-emerald-400"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
                 >
                   {MONTH_NAMES.map(m => (
                     <option key={m.num} value={m.num} className="bg-slate-900 text-white">
@@ -898,7 +1372,7 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Día del Mes (1 - 31) *</label>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Día del Mes (1-31) *</label>
                 <input
                   type="number"
                   min="1"
@@ -907,50 +1381,189 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
                   value={extraForm.dayOfMonth}
                   onChange={(e) => setExtraForm({ ...extraForm, dayOfMonth: e.target.value })}
                   placeholder="25"
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm font-mono focus:outline-none focus:border-emerald-400"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Importe Neto Extra (€) *</label>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Importe Neto de la Paga Extra (€) *</label>
               <input
-                type="text"
+                type="number"
+                step="0.01"
                 required
-                placeholder="2030.00"
                 value={extraForm.amount}
                 onChange={(e) => setExtraForm({ ...extraForm, amount: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm font-mono font-bold text-emerald-400 focus:outline-none focus:border-emerald-400"
+                placeholder="2150.00"
+                className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
               />
-              <span className="text-[11px] text-slate-400 mt-1 block">
-                Por defecto el sueldo habitual, pero puedes ajustarlo si la cuantía es diferente.
-              </span>
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Notas (Opcional)</label>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Notas</label>
               <input
                 type="text"
-                placeholder="Ej: Ingreso conjunto con nómina o transferencia independiente"
                 value={extraForm.notes}
                 onChange={(e) => setExtraForm({ ...extraForm, notes: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400"
+                placeholder="Detalles sobre esta paga extra..."
+                className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-white/10">
               <button
                 type="button"
-                onClick={() => setIsExtraModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold"
+                onClick={() => {
+                  setIsExtraModalOpen(false);
+                  setEditingExtraPay(null);
+                }}
+                className="px-4 py-2 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] text-white text-xs font-bold active:scale-95 transition-all"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20"
+                className="px-5 py-2 rounded-2xl bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-black text-xs shadow-md shadow-cyan-500/20 active:scale-95 transition-all"
               >
-                {editingExtraPay ? 'Actualizar Paga Extra' : 'Guardar Paga Extra'}
+                Guardar Paga Extra
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* --- MODAL 4: AÑADIR / EDITAR INGRESO PUNTUAL ORGANIZADO POR CONCEPTO --- */}
+      {isPunctualModalOpen && (
+        <Modal
+          isOpen={true}
+          onClose={() => {
+            setIsPunctualModalOpen(false);
+            setEditingPunctual(null);
+          }}
+          title={editingPunctual ? 'Editar Ingreso Puntual' : 'Registrar Ingreso Puntual'}
+        >
+          <form onSubmit={handleSavePunctual} className="space-y-4">
+            
+            <div>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">
+                Concepto / Categoría Agrupadora *
+              </label>
+              <select
+                value={punctualForm.category}
+                onChange={(e) => setPunctualForm({ ...punctualForm, category: e.target.value })}
+                className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+              >
+                {PRESET_CONCEPTS.map(p => (
+                  <option key={p.name} value={p.name} className="bg-slate-900 text-white">
+                    {p.icon} {p.name}
+                  </option>
+                ))}
+                <option value="custom" className="bg-slate-900 text-white">
+                  ➕ Otro Concepto Personalizado...
+                </option>
+              </select>
+            </div>
+
+            {punctualForm.category === 'custom' && (
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">
+                  Escribe el Nombre del Nuevo Concepto *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={punctualForm.customCategory}
+                  onChange={(e) => setPunctualForm({ ...punctualForm, customCategory: e.target.value })}
+                  placeholder="Ej: Alquiler Trastero, Dividendos Acciones..."
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">
+                Título o Detalle del Cobro *
+              </label>
+              <input
+                type="text"
+                required
+                value={punctualForm.title}
+                onChange={(e) => setPunctualForm({ ...punctualForm, title: e.target.value })}
+                placeholder="Ej: Devolución IRPF 2025, Venta Bicicleta Montaña, Bonus Q3..."
+                className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">
+                  Importe del Cobro (€) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={punctualForm.amount}
+                  onChange={(e) => setPunctualForm({ ...punctualForm, amount: e.target.value })}
+                  placeholder="450.00"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">
+                  Fecha del Cobro (AAAA-MM-DD) *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={punctualForm.date}
+                  onChange={(e) => setPunctualForm({ ...punctualForm, date: e.target.value })}
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Notas o Descripción</label>
+              <input
+                type="text"
+                value={punctualForm.notes}
+                onChange={(e) => setPunctualForm({ ...punctualForm, notes: e.target.value })}
+                placeholder="Detalle opcional (ej: comprador Wallapop, nº de justificante...)"
+                className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+              />
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-white block">Marcar como cobrado</span>
+                <span className="text-[11px] text-slate-400">Sumará inmediatamente al dinero disponible en cuenta</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={punctualForm.isPaid}
+                onChange={(e) => setPunctualForm({ ...punctualForm, isPaid: e.target.checked })}
+                className="w-5 h-5 rounded-lg accent-emerald-500 cursor-pointer"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPunctualModalOpen(false);
+                  setEditingPunctual(null);
+                }}
+                className="px-4 py-2 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] text-white text-xs font-bold active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 active:scale-95 transition-all"
+              >
+                {editingPunctual ? 'Actualizar Ingreso' : 'Guardar Ingreso Puntual'}
               </button>
             </div>
           </form>

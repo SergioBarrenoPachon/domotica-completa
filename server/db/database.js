@@ -83,6 +83,72 @@ class Database {
     return false;
   }
 
+  ensureLoanTransactionsLinked() {
+    if (!this.data || !this.data.finance) return;
+    if (!Array.isArray(this.data.finance.loans)) this.data.finance.loans = [];
+    if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = [];
+
+    this.data.finance.loans.forEach(loan => {
+      const isFamily = Boolean(loan.isFamilyLoan || loan.type === 'familiar');
+      if (isFamily && (Number(loan.monthlyPayment) === 0 || !loan.monthlyPayment)) {
+        return; // Los préstamos familiares sin cuota periódica no requieren transacción mensual
+      }
+
+      // Buscar transacción vinculada
+      let linkedTx = this.data.finance.transactions.find(t => t.loanId === loan.id);
+      if (!linkedTx) {
+        // Buscar huérfana de hipoteca / préstamo
+        linkedTx = this.data.finance.transactions.find(t => 
+          (!t.loanId || t.loanId === 'null') && 
+          t.type === 'gasto' && 
+          (
+            (loan.type === 'hipoteca' && (t.title?.toLowerCase().includes('hipoteca') || t.title?.toLowerCase().includes('préstamo') || t.title?.toLowerCase().includes('prestamo'))) ||
+            (loan.name && t.title?.toLowerCase().includes(loan.name.toLowerCase()))
+          )
+        );
+        if (linkedTx) {
+          linkedTx.loanId = loan.id;
+        }
+      }
+
+      if (linkedTx) {
+        // Sincronizar bidireccionalmente
+        if (loan.monthlyPayment !== undefined && Number(loan.monthlyPayment) > 0) {
+          linkedTx.amount = Number(loan.monthlyPayment);
+        } else if (Number(linkedTx.amount) > 0) {
+          loan.monthlyPayment = Number(linkedTx.amount);
+        }
+        if (loan.dayOfMonth !== undefined && Number(loan.dayOfMonth) > 0) {
+          linkedTx.dayOfMonth = Number(loan.dayOfMonth);
+        } else if (linkedTx.dayOfMonth) {
+          loan.dayOfMonth = Number(linkedTx.dayOfMonth);
+        }
+        const cleanName = loan.name.toLowerCase().startsWith('cuota') ? loan.name : `Cuota ${loan.name}`;
+        linkedTx.title = cleanName;
+        linkedTx.category = loan.type === 'hipoteca' ? 'Vivienda' : (loan.type === 'coche' ? 'Vehículo' : 'Préstamos');
+        linkedTx.active = true;
+      } else if (Number(loan.monthlyPayment) > 0) {
+        // Si no existe, crear la transacción para el calendario
+        const newTx = {
+          id: `fin-loan-${loan.id}`,
+          title: loan.name.toLowerCase().startsWith('cuota') ? loan.name : `Cuota ${loan.name}`,
+          amount: Number(loan.monthlyPayment),
+          type: 'gasto',
+          category: loan.type === 'hipoteca' ? 'Vivienda' : (loan.type === 'coche' ? 'Vehículo' : 'Préstamos'),
+          frequency: 'mensual',
+          dayOfMonth: Number(loan.dayOfMonth) || 1,
+          startDate: loan.startDate ? (loan.startDate.length === 7 ? `${loan.startDate}-01` : loan.startDate) : new Date().toISOString().slice(0, 10),
+          endDate: loan.endDate || null,
+          loanId: loan.id,
+          active: true,
+          isIndefinite: !loan.endDate,
+          notes: `Cuota mensual del préstamo ${loan.name}`
+        };
+        this.data.finance.transactions.push(newTx);
+      }
+    });
+  }
+
   load() {
     try {
       if (fs.existsSync(DB_FILE)) {
@@ -113,20 +179,7 @@ class Database {
         });
 
         // Ensure mortgage / loan transactions are properly registered and linked to their loan in finance.loans
-        (this.data.finance.loans || []).forEach(l => {
-          if (l.type === 'hipoteca' || l.id === 'loan-1') {
-            const unlinkedTx = (this.data.finance.transactions || []).find(t => 
-              (!t.loanId || t.loanId === 'null') && 
-              t.type === 'gasto' && 
-              (t.title?.toLowerCase().includes('hipoteca') || t.title?.toLowerCase().includes('préstamo') || t.title?.toLowerCase().includes('prestamo'))
-            );
-            if (unlinkedTx) {
-              unlinkedTx.loanId = l.id;
-              if (unlinkedTx.amount) l.monthlyPayment = Number(unlinkedTx.amount);
-              if (unlinkedTx.dayOfMonth) l.dayOfMonth = Number(unlinkedTx.dayOfMonth);
-            }
-          }
-        });
+        this.ensureLoanTransactionsLinked();
       } else {
         console.log('[Database] Inicializando base de datos permanente en:', DB_FILE);
         this.data = JSON.parse(JSON.stringify(initialSeedData));
@@ -170,7 +223,7 @@ class Database {
         if (!Array.isArray(this.data.finance.categories) || this.data.finance.categories.length === 0) {
           this.data.finance.categories = initialSeedData.finance.categories || [];
         }
-
+        this.ensureLoanTransactionsLinked();
         this.saveLocalOnly();
       } else {
         console.log('[Database] Inicializando primer volcado de datos en Neon PostgreSQL...');
@@ -930,6 +983,17 @@ class Database {
       if (updates.loanId !== undefined) tx.loanId = updates.loanId || null;
 
       Object.assign(tx, updates);
+
+      // Sincronización bidireccional con el préstamo asociado
+      if (tx.loanId) {
+        const loan = (this.data.finance.loans || []).find(l => l.id === tx.loanId);
+        if (loan) {
+          if (tx.amount !== undefined) loan.monthlyPayment = Number(tx.amount);
+          if (tx.dayOfMonth !== undefined) loan.dayOfMonth = Number(tx.dayOfMonth);
+          if (updates.title) loan.name = tx.title.replace(/^cuota\s+/i, '');
+        }
+      }
+
       this.save();
       return { type: 'rule_updated', transaction: tx };
     }
@@ -962,6 +1026,10 @@ class Database {
       if (tx.startDate) {
         const parts = tx.startDate.split('-');
         tx.startDate = `${parts[0]}-${parts[1] || '01'}-${String(safeDay).padStart(2, '0')}`;
+      }
+      if (tx.loanId) {
+        const loan = (this.data.finance.loans || []).find(l => l.id === tx.loanId);
+        if (loan) loan.dayOfMonth = safeDay;
       }
       if (monthKey) {
         this.createMonthOverride(id, monthKey, { dayOfMonth: safeDay });
