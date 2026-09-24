@@ -43,6 +43,26 @@ export default function LoansManager({ api, onRefresh }) {
   });
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
+  // Edit Loan Modal State
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    type: 'hipoteca',
+    bank: '',
+    initialAmount: '',
+    currentBalance: '',
+    interestRate: 2.5,
+    interestType: 'fijo',
+    monthlyPayment: '',
+    dayOfMonth: 1,
+    startDate: '',
+    endDate: '',
+    termYears: 25,
+    propertyValue: '',
+    notes: '',
+    isFamilyLoan: false
+  });
+
   // Repayment Form
   const [repayForm, setRepayForm] = useState({
     amount: '',
@@ -211,6 +231,60 @@ export default function LoansManager({ api, onRefresh }) {
 
   const toggleRepaymentsExpand = (loanId) => {
     setExpandedRepayments(prev => ({ ...prev, [loanId]: !prev[loanId] }));
+  };
+
+  const openEditModalFor = (loan) => {
+    setEditModal(loan);
+    setEditForm({
+      name: loan.name || '',
+      type: loan.type || (loan.isFamilyLoan ? 'familiar' : 'hipoteca'),
+      bank: loan.bank || '',
+      initialAmount: loan.initialAmount || '',
+      currentBalance: loan.currentBalance !== undefined ? loan.currentBalance : loan.initialAmount || '',
+      interestRate: loan.interestRate !== undefined ? loan.interestRate : 2.5,
+      interestType: loan.interestType || 'fijo',
+      monthlyPayment: loan.monthlyPayment !== undefined ? loan.monthlyPayment : '',
+      dayOfMonth: loan.dayOfMonth || 1,
+      startDate: loan.startDate || '',
+      endDate: loan.endDate || '',
+      termYears: loan.termYears || 25,
+      propertyValue: loan.propertyValue || '',
+      notes: loan.notes || '',
+      isFamilyLoan: Boolean(loan.isFamilyLoan || loan.type === 'familiar')
+    });
+  };
+
+  const handleUpdateLoan = async (e) => {
+    e.preventDefault();
+    if (!editModal || !editForm.name) return;
+
+    const isFamily = editForm.type === 'familiar';
+
+    try {
+      await api.updateLoan(editModal.id, {
+        name: editForm.name.trim(),
+        type: editForm.type,
+        bank: isFamily ? (editForm.bank || 'Padres / Familia') : editForm.bank,
+        initialAmount: Number(editForm.initialAmount) || 0,
+        currentBalance: Number(editForm.currentBalance) || 0,
+        interestRate: isFamily ? 0 : (Number(editForm.interestRate) || 0),
+        interestType: editForm.interestType,
+        monthlyPayment: isFamily ? (Number(editForm.monthlyPayment) || 0) : (Number(editForm.monthlyPayment) || 0),
+        dayOfMonth: Number(editForm.dayOfMonth) || 1,
+        startDate: editForm.startDate,
+        endDate: editForm.endDate || null,
+        termYears: isFamily ? null : (Number(editForm.termYears) || 0),
+        propertyValue: editForm.propertyValue ? Number(editForm.propertyValue) : null,
+        notes: editForm.notes,
+        isFamilyLoan: isFamily
+      });
+
+      setEditModal(null);
+      await loadLoans();
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Error actualizando préstamo: ' + err.message);
+    }
   };
 
   const formatEuro = (num) => `${new Intl.NumberFormat('es-ES').format(Math.round(num || 0))}€`;
@@ -535,6 +609,16 @@ export default function LoansManager({ api, onRefresh }) {
                         <span className="hidden sm:inline">Simular</span>
                       </button>
                     )}
+
+                    {/* Botón Editar Préstamo / Hipoteca */}
+                    <button
+                      onClick={() => openEditModalFor(loan)}
+                      className="px-3.5 py-2.5 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] text-white border border-white/10 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow-sm"
+                      title="Editar condiciones, cuota, importe o fechas"
+                    >
+                      <Edit3 className="w-4 h-4 text-amber-400" />
+                      <span>Editar</span>
+                    </button>
 
                     {confirmDeleteId === loan.id ? (
                       <div className="flex items-center gap-1.5 p-1 bg-rose-500/20 border border-rose-500/40 rounded-xl animate-fadeIn">
@@ -977,6 +1061,217 @@ export default function LoansManager({ api, onRefresh }) {
                 className="px-5 py-2 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-[0_4px_16px_rgba(255,159,10,0.35)] active:scale-95 transition-all"
               >
                 Guardar Préstamo
+              </button>
+            </div>
+
+          </form>
+        </Modal>
+      )}
+
+      {/* MODAL 4: EDITAR PRÉSTAMO / HIPOTECA EXISTENTE */}
+      {editModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setEditModal(null)}
+          title={`Editar: ${editModal.name || 'Préstamo'}`}
+        >
+          <form onSubmit={handleUpdateLoan} className="space-y-4">
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Tipo de Financiación *</label>
+                <select
+                  value={editForm.type}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    const isFam = newType === 'familiar';
+                    setEditForm({ 
+                      ...editForm, 
+                      type: newType,
+                      interestRate: isFam ? 0 : editForm.interestRate,
+                      monthlyPayment: isFam ? 0 : editForm.monthlyPayment,
+                      bank: isFam ? 'Padres / Familia' : (editForm.bank || '')
+                    });
+                  }}
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+                >
+                  <option value="hipoteca" className="bg-slate-900 text-white">🏠 Hipoteca Inmobiliaria</option>
+                  <option value="familiar" className="bg-slate-900 text-white">👨‍👩‍👧 Préstamo de Padres / Familiares (Devolución Libre)</option>
+                  <option value="coche" className="bg-slate-900 text-white">🚗 Financiación Coche / Vehículo</option>
+                  <option value="personal" className="bg-slate-900 text-white">💳 Préstamo Personal Bancario</option>
+                  <option value="reforma" className="bg-slate-900 text-white">🔨 Reforma del Hogar</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Nombre / Concepto *</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder={editForm.type === 'familiar' ? 'Ej: Préstamo Padres Entrada Piso' : 'Ej: Hipoteca Fija Piso Centro'}
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+                />
+              </div>
+            </div>
+
+            {editForm.type === 'familiar' && (
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
+                💡 <strong>Préstamo familiar:</strong> Devolución libre según vuestra conveniencia. Se actualizará en el panel de deuda y en el capital restante.
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Entidad / Prestamista</label>
+                <input
+                  type="text"
+                  value={editForm.bank}
+                  onChange={(e) => setEditForm({ ...editForm, bank: e.target.value })}
+                  placeholder={editForm.type === 'familiar' ? 'Padres' : 'BBVA / Santander...'}
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Capital Prestado Inicial (€) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={editForm.initialAmount}
+                  onChange={(e) => setEditForm({ ...editForm, initialAmount: e.target.value })}
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Capital Pendiente Actual (€) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={editForm.currentBalance}
+                  onChange={(e) => setEditForm({ ...editForm, currentBalance: e.target.value })}
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+            </div>
+
+            {editForm.type !== 'familiar' && (
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Interés Anual (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editForm.interestRate}
+                    onChange={(e) => setEditForm({ ...editForm, interestRate: e.target.value })}
+                    className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Tipo Interés</label>
+                  <select
+                    value={editForm.interestType || 'fijo'}
+                    onChange={(e) => setEditForm({ ...editForm, interestType: e.target.value })}
+                    className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+                  >
+                    <option value="fijo" className="bg-slate-900 text-white">Fijo</option>
+                    <option value="variable" className="bg-slate-900 text-white">Variable</option>
+                    <option value="mixto" className="bg-slate-900 text-white">Mixto</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Cuota Mensual (€) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required={editForm.type !== 'familiar'}
+                    value={editForm.monthlyPayment}
+                    onChange={(e) => setEditForm({ ...editForm, monthlyPayment: e.target.value })}
+                    placeholder="1585.98"
+                    className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Día Cobro en Mes (1-31)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={editForm.dayOfMonth}
+                    onChange={(e) => setEditForm({ ...editForm, dayOfMonth: e.target.value })}
+                    placeholder="1"
+                    className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Fecha Inicio (AAAA-MM)</label>
+                <input
+                  type="text"
+                  value={editForm.startDate}
+                  onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                  placeholder="2021-06"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Fecha Fin (AAAA-MM)</label>
+                <input
+                  type="text"
+                  value={editForm.endDate}
+                  onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })}
+                  placeholder="2046-06"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Plazo Total (Años)</label>
+                <input
+                  type="number"
+                  value={editForm.termYears}
+                  onChange={(e) => setEditForm({ ...editForm, termYears: e.target.value })}
+                  placeholder="25"
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Notas y Condiciones</label>
+              <textarea
+                value={editForm.notes}
+                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                rows="2"
+                placeholder="Condiciones, bonificaciones, seguro vinculado, etc."
+                className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setEditModal(null)}
+                className="px-4 py-2 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] text-white text-xs font-bold active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-[0_4px_16px_rgba(255,159,10,0.35)] active:scale-95 transition-all"
+              >
+                Guardar Cambios
               </button>
             </div>
 

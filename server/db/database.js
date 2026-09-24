@@ -111,6 +111,22 @@ class Database {
             }
           }
         });
+
+        // Ensure mortgage / loan transactions are properly registered and linked to their loan in finance.loans
+        (this.data.finance.loans || []).forEach(l => {
+          if (l.type === 'hipoteca' || l.id === 'loan-1') {
+            const unlinkedTx = (this.data.finance.transactions || []).find(t => 
+              (!t.loanId || t.loanId === 'null') && 
+              t.type === 'gasto' && 
+              (t.title?.toLowerCase().includes('hipoteca') || t.title?.toLowerCase().includes('préstamo') || t.title?.toLowerCase().includes('prestamo'))
+            );
+            if (unlinkedTx) {
+              unlinkedTx.loanId = l.id;
+              if (unlinkedTx.amount) l.monthlyPayment = Number(unlinkedTx.amount);
+              if (unlinkedTx.dayOfMonth) l.dayOfMonth = Number(unlinkedTx.dayOfMonth);
+            }
+          }
+        });
       } else {
         console.log('[Database] Inicializando base de datos permanente en:', DB_FILE);
         this.data = JSON.parse(JSON.stringify(initialSeedData));
@@ -887,6 +903,9 @@ class Database {
       if (updates.rateSteps !== undefined) {
         tx.rateSteps = Array.isArray(updates.rateSteps) ? updates.rateSteps : [];
       }
+      if (updates.extraPays !== undefined) {
+        tx.extraPays = Array.isArray(updates.extraPays) ? updates.extraPays : [];
+      }
       if (updates.startDate !== undefined) tx.startDate = updates.startDate;
       if (updates.endDate !== undefined) tx.endDate = updates.endDate || null;
       if (updates.isIndefinite !== undefined) tx.isIndefinite = Boolean(updates.isIndefinite);
@@ -1217,6 +1236,51 @@ class Database {
           rateSteps: tx.rateSteps || [],
           activeRateStep,
           notes: tx.notes || ''
+        });
+      }
+
+      // Generar pagas extras programadas manualmente para esta nómina en este mes
+      if (tx.type === 'ingreso' && Array.isArray(tx.extraPays) && tx.extraPays.length > 0) {
+        tx.extraPays.forEach((extra, idx) => {
+          if (Number(extra.month) === currentMonthNumber) {
+            const extraId = `${tx.id}_extra_${extra.id || idx}`;
+            const extraOverride = overrides.find(o => o.transactionId === extraId);
+            if (extraOverride && extraOverride.excluded) return;
+
+            const extraPaymentInfo = monthPayments[extraId] || { paid: false, date: null };
+            let extraDay = extraOverride?.dayOfMonth !== undefined ? Number(extraOverride.dayOfMonth) : (Number(extra.dayOfMonth) || 25);
+            const safeExtraDay = Math.min(Math.max(Math.floor(extraDay) || 25, 1), daysInMonth);
+            const baseExtraAmt = (extra.amount !== undefined && extra.amount !== null && extra.amount !== '')
+              ? Number(extra.amount)
+              : effectiveAmount;
+            const finalExtraAmt = extraOverride?.amount !== undefined ? Number(extraOverride.amount) : baseExtraAmt;
+
+            items.push({
+              id: extraId,
+              parentTxId: tx.id,
+              extraPayId: extra.id || `extra-${idx}`,
+              isExtraPay: true,
+              title: extraOverride?.title || extra.title || `Paga Extra ${tx.title}`,
+              originalAmount: baseExtraAmt,
+              amount: finalExtraAmt,
+              type: 'ingreso',
+              category: tx.category || 'Nóminas',
+              categoryGroup: 'Ingresos',
+              categoryColor: '#30d158',
+              categoryIcon: 'Sparkles',
+              frequency: 'anual',
+              isRecurring: false,
+              date: `${yearStr}-${monthStr}-${String(safeExtraDay).padStart(2, '0')}`,
+              dayOfMonth: safeExtraDay,
+              isOverridden: Boolean(extraOverride),
+              overrideId: extraOverride ? extraOverride.id : null,
+              paid: Boolean(extraPaymentInfo.paid),
+              paidDate: extraPaymentInfo.date,
+              loanId: null,
+              notes: extra.notes || `Paga extra asociada a ${tx.title}`,
+              active: true
+            });
+          }
         });
       }
     });
@@ -1656,19 +1720,66 @@ class Database {
   updateLoan(id, updates) {
     const loan = (this.data.finance.loans || []).find(l => l.id === id);
     if (loan) {
-      if (updates.initialAmount !== undefined) updates.initialAmount = Number(updates.initialAmount);
-      if (updates.currentBalance !== undefined) updates.currentBalance = Number(updates.currentBalance);
-      if (updates.interestRate !== undefined) updates.interestRate = Number(updates.interestRate);
-      if (updates.monthlyPayment !== undefined) updates.monthlyPayment = Number(updates.monthlyPayment);
-      if (updates.termYears !== undefined) updates.termYears = Number(updates.termYears);
-      if (updates.propertyValue !== undefined) updates.propertyValue = Number(updates.propertyValue);
+      if (updates.name !== undefined) loan.name = updates.name;
+      if (updates.type !== undefined) loan.type = updates.type;
+      if (updates.bank !== undefined) loan.bank = updates.bank;
+      if (updates.initialAmount !== undefined) loan.initialAmount = Number(updates.initialAmount);
+      if (updates.currentBalance !== undefined) loan.currentBalance = Number(updates.currentBalance);
+      if (updates.interestRate !== undefined) loan.interestRate = Number(updates.interestRate);
+      if (updates.interestType !== undefined) loan.interestType = updates.interestType;
+      if (updates.monthlyPayment !== undefined) loan.monthlyPayment = Number(updates.monthlyPayment);
+      if (updates.termYears !== undefined) loan.termYears = Number(updates.termYears);
+      if (updates.propertyValue !== undefined) loan.propertyValue = Number(updates.propertyValue);
+      if (updates.dayOfMonth !== undefined) loan.dayOfMonth = Number(updates.dayOfMonth) || 1;
+      if (updates.startDate !== undefined) loan.startDate = updates.startDate;
+      if (updates.endDate !== undefined) loan.endDate = updates.endDate || null;
+      if (updates.notes !== undefined) loan.notes = updates.notes;
+      if (updates.isFamilyLoan !== undefined) loan.isFamilyLoan = Boolean(updates.isFamilyLoan);
+
       Object.assign(loan, updates);
 
-      // Also update linked transaction if any
-      const linkedTx = (this.data.finance.transactions || []).find(t => t.loanId === id);
-      if (linkedTx && updates.monthlyPayment) {
-        linkedTx.amount = updates.monthlyPayment;
-        if (updates.endDate) linkedTx.endDate = updates.endDate;
+      const isFamily = Boolean(loan.isFamilyLoan || loan.type === 'familiar');
+
+      // Sincronizar o vincular la transacción en el calendario
+      let linkedTx = (this.data.finance.transactions || []).find(t => t.loanId === id);
+      if (!linkedTx) {
+        linkedTx = (this.data.finance.transactions || []).find(t => 
+          (!t.loanId || t.loanId === 'null') && 
+          t.type === 'gasto' && 
+          (t.title?.toLowerCase().includes('hipoteca') || t.title?.toLowerCase().includes('préstamo') || t.title?.toLowerCase().includes('prestamo'))
+        );
+        if (linkedTx) {
+          linkedTx.loanId = id;
+        }
+      }
+
+      if (linkedTx) {
+        if (updates.name) {
+          linkedTx.title = updates.name.toLowerCase().startsWith('cuota') ? updates.name : `Cuota ${updates.name}`;
+        }
+        if (updates.monthlyPayment !== undefined) linkedTx.amount = Number(updates.monthlyPayment);
+        if (updates.dayOfMonth !== undefined) linkedTx.dayOfMonth = Number(updates.dayOfMonth) || 1;
+        if (updates.startDate !== undefined) linkedTx.startDate = updates.startDate;
+        if (updates.endDate !== undefined) linkedTx.endDate = updates.endDate || null;
+        linkedTx.category = (loan.type === 'hipoteca' ? 'Vivienda' : (loan.type === 'coche' ? 'Vehículo' : 'Préstamos'));
+        if (isFamily && (Number(loan.monthlyPayment) === 0 || !loan.monthlyPayment)) {
+          linkedTx.active = false;
+        } else {
+          linkedTx.active = true;
+        }
+      } else if (!isFamily && Number(loan.monthlyPayment) > 0) {
+        this.addFinanceTransaction({
+          title: `Cuota ${loan.name}`,
+          amount: Number(loan.monthlyPayment),
+          type: 'gasto',
+          category: loan.type === 'hipoteca' ? 'Vivienda' : (loan.type === 'coche' ? 'Vehículo' : 'Préstamos'),
+          frequency: 'mensual',
+          dayOfMonth: Number(loan.dayOfMonth) || 1,
+          startDate: loan.startDate || new Date().toISOString().slice(0, 7),
+          endDate: loan.endDate || null,
+          loanId: loan.id,
+          isIndefinite: !loan.endDate
+        });
       }
 
       this.save();

@@ -74,7 +74,15 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
         api.getFinanceTransactions(),
         api.getFinanceCategories ? api.getFinanceCategories() : []
       ]);
-      const expenseList = (allTx || []).filter(t => t.type === 'gasto' && t.frequency !== 'puntual');
+      const isLoanOrMortgage = (t) => {
+        if (t.loanId) return true;
+        const cat = (t.category || '').toLowerCase();
+        if (cat === 'préstamos' || cat === 'prestamos') return true;
+        const title = (t.title || '').toLowerCase();
+        if (title.includes('hipoteca') || title.includes('préstamo') || title.includes('prestamo')) return true;
+        return false;
+      };
+      const expenseList = (allTx || []).filter(t => t.type === 'gasto' && t.frequency !== 'puntual' && !isLoanOrMortgage(t));
       setExpenses(expenseList);
       setCategories(allCats || []);
     } catch (err) {

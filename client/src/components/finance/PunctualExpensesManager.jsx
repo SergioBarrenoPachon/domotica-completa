@@ -43,8 +43,38 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
   const loadPunctualExpenses = async () => {
     try {
       setLoading(true);
-      const res = await api.getPunctualExpenses(100);
-      setExpenses(res?.data || []);
+      const [allTx, res] = await Promise.all([
+        api.getFinanceTransactions(),
+        api.getPunctualExpenses(200)
+      ]);
+      
+      const pgList = res?.data || [];
+      const txPunctual = (allTx || [])
+        .filter(t => t.type === 'gasto' && t.frequency === 'puntual')
+        .map(t => ({
+          id: t.id,
+          titulo: t.title,
+          importe: t.amount,
+          categoria: t.category,
+          fecha: t.startDate || (t.createdAt ? t.createdAt.slice(0, 10) : ''),
+          metodo_pago: t.paymentMethod || 'Manual / App',
+          notas: t.notes,
+          origen: 'app_manual'
+        }));
+
+      // Unificar y eliminar duplicados por ID
+      const seenIds = new Set();
+      const unified = [];
+
+      [...pgList, ...txPunctual].forEach(item => {
+        if (!seenIds.has(item.id)) {
+          seenIds.add(item.id);
+          unified.push(item);
+        }
+      });
+
+      unified.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+      setExpenses(unified);
     } catch (err) {
       console.error('Error cargando gastos puntuales:', err);
     } finally {
@@ -85,7 +115,12 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
   const handleDeleteExpense = async (id) => {
     if (!confirm('¿Eliminar este gasto puntual?')) return;
     try {
-      await api.deletePunctualExpense(id);
+      if (typeof id === 'string' && (id.startsWith('fin-') || id.startsWith('gasto-apple-'))) {
+        await api.deleteFinanceTransaction(id);
+      }
+      try {
+        await api.deletePunctualExpense(id);
+      } catch (_) {}
       await loadPunctualExpenses();
       if (onDataChanged) onDataChanged();
     } catch (err) {

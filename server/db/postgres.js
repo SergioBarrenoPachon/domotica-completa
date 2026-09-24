@@ -146,6 +146,7 @@ class PostgresService {
           ALTER TABLE prestamos ADD COLUMN IF NOT EXISTS historial_pagos JSONB DEFAULT '[]'::jsonb;
           ALTER TABLE prestamos ADD COLUMN IF NOT EXISTS estado VARCHAR(50) DEFAULT 'activo';
           ALTER TABLE transacciones_finanzas ADD COLUMN IF NOT EXISTS tramos JSONB DEFAULT '[]'::jsonb;
+          ALTER TABLE transacciones_finanzas ADD COLUMN IF NOT EXISTS pagas_extras JSONB DEFAULT '[]'::jsonb;
 
           -- Tabla relacional de metas de ahorro
           CREATE TABLE IF NOT EXISTS metas_ahorro (
@@ -354,7 +355,7 @@ class PostgresService {
               parseFloat(tx.yearlyIncreasePct) || 0,
               tx.loanId || null,
               tx.notes || '',
-              JSON.stringify({ activeMonths: tx.activeMonths, rateSteps: tx.rateSteps }),
+              JSON.stringify({ activeMonths: tx.activeMonths, rateSteps: tx.rateSteps, extraPays: tx.extraPays }),
               JSON.stringify(Array.isArray(tx.rateSteps) ? tx.rateSteps : [])
             ]
           );
