@@ -22,9 +22,31 @@ function DashboardViewComponent({ summary, onNavigate, onQuickToggleScene }) {
   const meals = summary?.meals || { today: null, shoppingPendingCount: 0 };
   const alerts = summary?.alerts || { criticalCount: 0, warningCount: 0, lowStockPantryCount: 0 };
 
+  const round2 = (val) => Math.round((Number(val) || 0) * 100) / 100;
+  const totalIncome = round2(finance.totalIncome);
+  const totalExpenses = round2(finance.totalExpenses);
+  const projectedBalance = round2(totalIncome - totalExpenses);
+  const paidIncome = round2(finance.paidIncome);
+  const paidExpenses = round2(finance.paidExpenses);
+
   const formatMoney = (val) => {
-    const num = Number(val) || 0;
-    return num.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (val === undefined || val === null || val === '') return '0,00';
+    let num = val;
+    if (typeof num === 'string') {
+      let str = num.trim().replace('€', '').trim();
+      if (str.includes('.') && str.includes(',')) {
+        if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
+          str = str.replace(/\./g, '').replace(',', '.');
+        } else {
+          str = str.replace(/,/g, '');
+        }
+      } else if (str.includes(',')) {
+        str = str.replace(',', '.');
+      }
+      num = parseFloat(str);
+    }
+    const safeNum = Math.round((Number(num) || 0) * 100) / 100;
+    return safeNum.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const containerVariants = {
@@ -83,11 +105,11 @@ function DashboardViewComponent({ summary, onNavigate, onQuickToggleScene }) {
               <TrendingUp className="w-5 h-5" />
             </div>
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 font-mono">
-              +{formatMoney(finance.totalIncome)}€
+              +{formatMoney(totalIncome)}€
             </span>
           </div>
           <p className="text-2xl sm:text-3xl font-bold text-white mt-3 font-display tracking-tight">
-            {finance.projectedBalance >= 0 ? `+${formatMoney(finance.projectedBalance)}€` : `${formatMoney(finance.projectedBalance)}€`}
+            {projectedBalance >= 0 ? `+${formatMoney(projectedBalance)}€` : `${formatMoney(projectedBalance)}€`}
           </p>
           <p className="text-xs text-slate-400 truncate mt-0.5 font-medium">Balance Estimado</p>
         </motion.div>
@@ -235,24 +257,24 @@ function DashboardViewComponent({ summary, onNavigate, onQuickToggleScene }) {
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-400">Proyección del mes:</span>
                 <span className="font-bold text-white font-mono">
-                  {formatMoney(finance.totalIncome)}€ - {formatMoney(finance.totalExpenses)}€ = <span className={finance.projectedBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{finance.projectedBalance >= 0 ? `+${formatMoney(finance.projectedBalance)}€` : `${formatMoney(finance.projectedBalance)}€`}</span>
+                  {formatMoney(totalIncome)}€ - {formatMoney(totalExpenses)}€ = <span className={projectedBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{projectedBalance >= 0 ? `+${formatMoney(projectedBalance)}€` : `${formatMoney(projectedBalance)}€`}</span>
                 </span>
               </div>
               <div className="w-full bg-black/40 h-2.5 rounded-full overflow-hidden flex border border-white/5">
                 <div
                   className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${finance.totalIncome > 0 ? Math.min(100, (finance.paidIncome / finance.totalIncome) * 100) : 0}%` }}
+                  style={{ width: `${totalIncome > 0 ? Math.min(100, (paidIncome / totalIncome) * 100) : 0}%` }}
                   title="Ingresos Cobrados"
                 />
                 <div
                   className="bg-amber-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${finance.totalExpenses > 0 ? Math.min(100, (finance.paidExpenses / (finance.totalIncome || 1)) * 100) : 0}%` }}
+                  style={{ width: `${totalIncome > 0 ? Math.min(100, (paidExpenses / totalIncome) * 100) : 0}%` }}
                   title="Gastos Pagados"
                 />
               </div>
               <div className="flex justify-between text-[11px] text-slate-400 font-mono">
-                <span className="text-emerald-300 font-medium">Cobrado: +{formatMoney(finance.paidIncome)}€</span>
-                <span className="text-amber-300 font-medium">Pagado: -{formatMoney(finance.paidExpenses)}€</span>
+                <span className="text-emerald-300 font-medium">Cobrado: +{formatMoney(paidIncome)}€</span>
+                <span className="text-amber-300 font-medium">Pagado: -{formatMoney(paidExpenses)}€</span>
               </div>
             </div>
           </div>

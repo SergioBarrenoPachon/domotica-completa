@@ -199,7 +199,25 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
 
   // Dinero en Cuenta Real del mes (lo cobrado hasta hoy menos lo pagado/descontado hasta hoy)
   const currentAvailableMoney = paidIncome - paidExpenses;
-  const formatMoney = (val) => (Number(val) || 0).toFixed(2);
+  const formatMoney = (val) => {
+    if (val === undefined || val === null || val === '') return '0,00';
+    let num = val;
+    if (typeof num === 'string') {
+      let str = num.trim().replace('€', '').trim();
+      if (str.includes('.') && str.includes(',')) {
+        if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
+          str = str.replace(/\./g, '').replace(',', '.');
+        } else {
+          str = str.replace(/,/g, '');
+        }
+      } else if (str.includes(',')) {
+        str = str.replace(',', '.');
+      }
+      num = parseFloat(str);
+    }
+    const safeNum = Math.round((Number(num) || 0) * 100) / 100;
+    return safeNum.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
 
   return (
     <div className="space-y-6 pb-28">

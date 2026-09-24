@@ -505,9 +505,22 @@ class Database {
     const devicesOnCount = devices.filter(d => d.state === true).length;
     const totalPowerWatts = devices.reduce((sum, d) => sum + (d.state ? (d.powerWatts || 0) : 0), 0);
 
-    // Current month finance overview
-    const currentMonthKey = today.toISOString().slice(0, 7); // '2026-08'
+    // Current month finance overview (using local calendar month)
+    const localYear = today.getFullYear();
+    const localMonth = String(today.getMonth() + 1).padStart(2, '0');
+    const currentMonthKey = `${localYear}-${localMonth}`;
     const financeSummary = this.calculateMonthFinance(currentMonthKey);
+    const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
+    if (financeSummary) {
+      financeSummary.totalIncome = round2(financeSummary.totalIncome);
+      financeSummary.totalExpenses = round2(financeSummary.totalExpenses);
+      financeSummary.projectedBalance = round2(financeSummary.totalIncome - financeSummary.totalExpenses);
+      financeSummary.paidIncome = round2(financeSummary.paidIncome);
+      financeSummary.paidExpenses = round2(financeSummary.paidExpenses);
+      financeSummary.currentActualBalance = round2(financeSummary.paidIncome - financeSummary.paidExpenses);
+      financeSummary.pendingExpensesTotal = round2(financeSummary.pendingExpensesTotal);
+      financeSummary.upcoming7DaysTotal = round2(financeSummary.upcoming7DaysTotal);
+    }
 
     // Today's meal
     const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
