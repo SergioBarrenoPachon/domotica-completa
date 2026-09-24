@@ -203,12 +203,19 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
     if (!incomeForm.title || !incomeForm.amount) return;
 
     try {
+      const cleanAmount = parseFloat(String(incomeForm.amount).replace(',', '.'));
+      if (isNaN(cleanAmount) || cleanAmount <= 0) {
+        alert('Por favor introduce un importe neto válido para la nómina');
+        return;
+      }
+
       const payload = {
         ...incomeForm,
         type: 'ingreso',
-        amount: parseFloat(String(incomeForm.amount).replace(',', '.')),
+        amount: cleanAmount,
         dayOfMonth: parseInt(incomeForm.dayOfMonth, 10) || 28,
-        rateSteps: editingIncome ? (editingIncome.rateSteps || []) : []
+        rateSteps: editingIncome ? (editingIncome.rateSteps || []) : [],
+        extraPays: editingIncome ? (editingIncome.extraPays || []) : []
       };
 
       if (editingIncome) {
@@ -231,9 +238,10 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
         isIndefinite: true,
         notes: ''
       });
-      loadIncomes();
+      await loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
+      console.error('Error guardando nómina:', err);
       alert('Error guardando nómina: ' + err.message);
     }
   };
@@ -1169,8 +1177,8 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
               <div>
                 <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Importe Mensual Neto (€) *</label>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   required
                   value={incomeForm.amount}
                   onChange={(e) => setIncomeForm({ ...incomeForm, amount: e.target.value })}
@@ -1288,8 +1296,8 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
             <div>
               <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Nuevo Importe Neto Mensual (€) *</label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 required
                 value={tramoForm.amount}
                 onChange={(e) => setTramoForm({ ...tramoForm, amount: e.target.value })}
@@ -1389,8 +1397,8 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
             <div>
               <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Importe Neto de la Paga Extra (€) *</label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 required
                 value={extraForm.amount}
                 onChange={(e) => setExtraForm({ ...extraForm, amount: e.target.value })}

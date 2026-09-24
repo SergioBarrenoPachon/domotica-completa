@@ -173,6 +173,14 @@ export const api = {
     });
     return handleResponse(res);
   },
+  async updateFinanceTransaction(id, updates) {
+    const res = await fetch(`${BASE_URL}/finance/transactions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    return handleResponse(res);
+  },
   async toggleTransactionActive(id) {
     const res = await fetch(`${BASE_URL}/finance/transactions/${id}/toggle`, {
       method: 'PATCH'
