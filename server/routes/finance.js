@@ -342,6 +342,8 @@ router.post('/loans/:id/simulate', (req, res) => {
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
   }
+});
+
 // POST /api/finance/loans/:id/repay - Registrar amortización o devolución (especialmente útil para préstamos familiares o extraordinarios)
 router.post('/loans/:id/repay', (req, res) => {
   try {
