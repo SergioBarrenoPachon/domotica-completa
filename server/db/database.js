@@ -8,11 +8,15 @@ const __dirname = path.dirname(__filename);
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '../../data');
 const DB_FILE = path.join(DATA_DIR, 'domotica_db.json');
+const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 const UPLOADS_DIR = path.join(__dirname, '../../uploads');
 
 // Ensure directories exist
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (!fs.existsSync(BACKUPS_DIR)) {
+  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 }
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -24,9 +28,61 @@ class Database {
     this.load();
   }
 
+  createBackup(reason = 'auto') {
+    try {
+      if (!fs.existsSync(DB_FILE)) return null;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupFile = path.join(BACKUPS_DIR, `backup-${timestamp}-${reason}.json`);
+      fs.copyFileSync(DB_FILE, backupFile);
+
+      // Keep only latest 25 backups
+      const files = fs.readdirSync(BACKUPS_DIR)
+        .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
+        .sort()
+        .reverse();
+
+      if (files.length > 25) {
+        files.slice(25).forEach(oldFile => {
+          try { fs.unlinkSync(path.join(BACKUPS_DIR, oldFile)); } catch (_) {}
+        });
+      }
+      return { success: true, file: backupFile, timestamp };
+    } catch (err) {
+      console.error('Error creating backup:', err);
+      return null;
+    }
+  }
+
+  recoverFromLatestBackup() {
+    try {
+      if (!fs.existsSync(BACKUPS_DIR)) return false;
+      const backupFiles = fs.readdirSync(BACKUPS_DIR)
+        .filter(f => f.startsWith('backup-') && f.endsWith('.json'))
+        .sort()
+        .reverse();
+
+      for (const bFile of backupFiles) {
+        try {
+          const content = fs.readFileSync(path.join(BACKUPS_DIR, bFile), 'utf-8');
+          const parsed = JSON.parse(content);
+          this.data = parsed;
+          this.save();
+          console.log(`[Database] Recuperada con éxito desde copia de seguridad: ${bFile}`);
+          return true;
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.error('Error recuperando respaldo:', err);
+    }
+    return false;
+  }
+
   load() {
     try {
       if (fs.existsSync(DB_FILE)) {
+        // Create an automatic safety backup before reading
+        this.createBackup('startup');
+
         const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
         this.data = JSON.parse(fileContent);
         
@@ -37,15 +93,65 @@ class Database {
         if (!Array.isArray(this.data.finance.goals)) this.data.finance.goals = initialSeedData.finance.goals || [];
         if (!Array.isArray(this.data.finance.overrides)) this.data.finance.overrides = [];
         if (!this.data.finance.payments) this.data.finance.payments = {};
+        if (!Array.isArray(this.data.finance.categories) || this.data.finance.categories.length === 0) {
+          this.data.finance.categories = initialSeedData.finance.categories || [];
+        }
+        // Sanitize any corrupt transaction dayOfMonth (must be integer 1-31)
+        (this.data.finance.transactions || []).forEach(tx => {
+          if (tx.dayOfMonth !== undefined && tx.dayOfMonth !== null) {
+            let d = Number(tx.dayOfMonth);
+            if (isNaN(d) || d < 1 || d > 31 || !Number.isInteger(d)) {
+              tx.dayOfMonth = Math.min(31, Math.max(1, Math.floor(d) || 1));
+            }
+          }
+        });
       } else {
+        console.log('[Database] Inicializando base de datos permanente en:', DB_FILE);
         this.data = JSON.parse(JSON.stringify(initialSeedData));
         this.save();
       }
     } catch (err) {
-      console.error('Error loading database, resetting to seed data:', err);
-      this.data = JSON.parse(JSON.stringify(initialSeedData));
-      this.save();
+      console.error('[Database Error] Error cargando base de datos:', err);
+      const recovered = this.recoverFromLatestBackup();
+      if (!recovered) {
+        try {
+          const corruptBackup = path.join(DATA_DIR, `domotica_db.corrupt-${Date.now()}.json`);
+          if (fs.existsSync(DB_FILE)) fs.copyFileSync(DB_FILE, corruptBackup);
+        } catch (_) {}
+        this.data = JSON.parse(JSON.stringify(initialSeedData));
+        this.save();
+      }
     }
+  }
+
+  getDatabaseStatus() {
+    let stats = null;
+    if (fs.existsSync(DB_FILE)) {
+      stats = fs.statSync(DB_FILE);
+    }
+    const backupFiles = fs.existsSync(BACKUPS_DIR) 
+      ? fs.readdirSync(BACKUPS_DIR).filter(f => f.endsWith('.json'))
+      : [];
+
+    return {
+      status: 'healthy',
+      storageType: 'Base de Datos Central en Disco (JSON DB Permanente)',
+      dbFile: DB_FILE,
+      sizeBytes: stats ? stats.size : 0,
+      lastModified: stats ? stats.mtime.toISOString() : null,
+      backupsCount: backupFiles.length,
+      isMultiDevice: true,
+      description: 'Los datos se guardan de forma permanente en el disco del servidor. No residen en la memoria local del navegador y son accesibles de forma sincronizada desde cualquier tablet, móvil o PC conectado.',
+      counts: {
+        transactions: (this.data?.finance?.transactions || []).length,
+        categories: (this.data?.finance?.categories || []).length,
+        loans: (this.data?.finance?.loans || []).length,
+        goals: (this.data?.finance?.goals || []).length,
+        pantryItems: (this.data?.pantry || []).length,
+        shoppingItems: (this.data?.shoppingList || []).length,
+        documents: (this.data?.documents || []).length
+      }
+    };
   }
 
   save() {
@@ -337,11 +443,66 @@ class Database {
   }
 
   // --- FINANCE ENGINE WITH RECURRENCE, CALENDAR, LONG-TERM & LOANS ---
+  // --- FINANCE CATEGORIES & GROUPINGS ---
+  getFinanceCategories() {
+    return this.data.finance.categories || [];
+  }
+
+  addFinanceCategory(category) {
+    if (!this.data.finance.categories) this.data.finance.categories = [];
+    const name = (category.name || '').trim();
+    if (!name) throw new Error('El nombre de la categoría es obligatorio');
+
+    // Check if category already exists
+    const existing = this.data.finance.categories.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (existing) return existing;
+
+    const newCat = {
+      id: `cat-${Date.now()}`,
+      name,
+      group: (category.group || '').trim() || 'Personalizados',
+      color: category.color || '#f59e0b',
+      icon: category.icon || 'Tag',
+      isDefault: false
+    };
+    this.data.finance.categories.push(newCat);
+    this.save();
+    return newCat;
+  }
+
+  deleteFinanceCategory(id) {
+    if (this.data.finance.categories) {
+      this.data.finance.categories = this.data.finance.categories.filter(c => c.id !== id);
+      this.save();
+    }
+    return { success: true, id };
+  }
+
   getFinanceTransactions() {
     return this.data.finance.transactions || [];
   }
 
   addFinanceTransaction(tx) {
+    let day = Number(tx.dayOfMonth);
+    const startDate = tx.startDate || new Date().toISOString().slice(0, 7);
+
+    // If dayOfMonth was not explicitly set but startDate is YYYY-MM-DD, extract day
+    if ((!day || isNaN(day)) && startDate && startDate.length >= 10) {
+      const parts = startDate.split('-');
+      if (parts[2]) day = parseInt(parts[2], 10);
+    }
+    if (!day || isNaN(day)) day = 1;
+    day = Math.min(31, Math.max(1, Math.floor(day)));
+
+    let monthOfYear = tx.monthOfYear ? Number(tx.monthOfYear) : null;
+    if (!monthOfYear && startDate) {
+      const parts = startDate.split('-');
+      if (parts[1]) {
+        const m = parseInt(parts[1], 10);
+        if (!isNaN(m) && m >= 1 && m <= 12) monthOfYear = m;
+      }
+    }
+
     const newTx = {
       id: `fin-${Date.now()}`,
       title: tx.title,
@@ -349,52 +510,188 @@ class Database {
       type: tx.type || 'gasto', // 'ingreso' | 'gasto'
       category: tx.category || 'General',
       frequency: tx.frequency || 'mensual', // 'mensual' | 'trimestral' | 'semestral' | 'anual' | 'puntual'
-      dayOfMonth: Number(tx.dayOfMonth) || 1,
-      monthOfYear: tx.monthOfYear ? Number(tx.monthOfYear) : null,
+      dayOfMonth: day,
+      monthOfYear: monthOfYear,
       active: tx.active !== false,
-      startDate: tx.startDate || new Date().toISOString().slice(0, 7),
+      startDate: startDate,
       endDate: tx.endDate || null,
       isIndefinite: tx.isIndefinite !== false,
       yearlyIncreasePct: tx.yearlyIncreasePct ? Number(tx.yearlyIncreasePct) : 0,
-      loanId: tx.loanId || null
+      loanId: tx.loanId || null,
+      activeMonths: Array.isArray(tx.activeMonths) ? tx.activeMonths.map(Number).filter(n => n >= 1 && n <= 12) : null,
+      rateSteps: Array.isArray(tx.rateSteps) ? tx.rateSteps : [],
+      notes: tx.notes || '',
+      createdAt: new Date().toISOString()
     };
     if (!this.data.finance.transactions) this.data.finance.transactions = [];
     this.data.finance.transactions.push(newTx);
+
+    // If initialPaid is true, immediately mark as paid for this month (e.g. for everyday groceries)
+    if (tx.initialPaid) {
+      const monthKey = startDate.slice(0, 7);
+      if (!this.data.finance.payments) this.data.finance.payments = {};
+      if (!this.data.finance.payments[monthKey]) this.data.finance.payments[monthKey] = {};
+      this.data.finance.payments[monthKey][newTx.id] = {
+        paid: true,
+        date: startDate.length >= 10 ? startDate : new Date().toISOString().slice(0, 10)
+      };
+    }
+
     this.save();
     return newTx;
   }
 
+  toggleTransactionActive(id) {
+    const tx = (this.data.finance.transactions || []).find(t => t.id === id);
+    if (!tx) return null;
+    tx.active = !tx.active;
+    this.save();
+    return tx;
+  }
+
   updateFinanceTransaction(id, updates, mode = 'future') {
-    if (mode === 'future') {
-      const tx = this.data.finance.transactions.find(t => t.id === id);
-      if (tx) {
-        if (updates.amount !== undefined) updates.amount = Number(updates.amount);
-        if (updates.dayOfMonth !== undefined) updates.dayOfMonth = Number(updates.dayOfMonth);
-        if (updates.monthOfYear !== undefined) updates.monthOfYear = updates.monthOfYear ? Number(updates.monthOfYear) : null;
-        if (updates.yearlyIncreasePct !== undefined) updates.yearlyIncreasePct = Number(updates.yearlyIncreasePct);
-        Object.assign(tx, updates);
-        this.save();
-        return { type: 'rule_updated', transaction: tx };
+    const parseSafe = (val, fallback = 0) => {
+      if (val === undefined || val === null || val === '') return fallback;
+      if (typeof val === 'number') return isNaN(val) ? fallback : val;
+      let str = String(val).trim();
+      if (str.includes('.') && str.includes(',')) {
+        if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
+          str = str.replace(/\./g, '').replace(',', '.');
+        } else {
+          str = str.replace(/,/g, '');
+        }
+      } else if (str.includes(',')) {
+        str = str.replace(',', '.');
       }
+      const num = parseFloat(str);
+      return isNaN(num) ? fallback : num;
+    };
+
+    const tx = (this.data.finance.transactions || []).find(t => t.id === id);
+    if (tx) {
+      if (updates.amount !== undefined) {
+        updates.amount = parseSafe(updates.amount, tx.amount);
+      }
+      if (updates.dayOfMonth !== undefined) {
+        let d = parseInt(updates.dayOfMonth, 10);
+        if (!isNaN(d)) {
+          updates.dayOfMonth = Math.min(31, Math.max(1, d));
+          if (tx.startDate) {
+            const parts = tx.startDate.split('-');
+            tx.startDate = `${parts[0]}-${parts[1] || '01'}-${String(updates.dayOfMonth).padStart(2, '0')}`;
+          }
+        }
+      }
+      if (updates.monthOfYear !== undefined) updates.monthOfYear = updates.monthOfYear ? Number(updates.monthOfYear) : null;
+      if (updates.yearlyIncreasePct !== undefined) updates.yearlyIncreasePct = Number(updates.yearlyIncreasePct);
+      if (updates.active !== undefined) tx.active = Boolean(updates.active);
+      if (updates.activeMonths !== undefined) {
+        tx.activeMonths = Array.isArray(updates.activeMonths) ? updates.activeMonths.map(Number).filter(n => n >= 1 && n <= 12) : null;
+      }
+      if (updates.rateSteps !== undefined) {
+        tx.rateSteps = Array.isArray(updates.rateSteps) ? updates.rateSteps : [];
+      }
+      if (updates.startDate !== undefined) tx.startDate = updates.startDate;
+      if (updates.endDate !== undefined) tx.endDate = updates.endDate || null;
+      if (updates.isIndefinite !== undefined) tx.isIndefinite = Boolean(updates.isIndefinite);
+      if (updates.title !== undefined) tx.title = updates.title;
+      if (updates.type !== undefined) tx.type = updates.type;
+      if (updates.category !== undefined) tx.category = updates.category;
+      if (updates.frequency !== undefined) tx.frequency = updates.frequency;
+      if (updates.notes !== undefined) tx.notes = updates.notes;
+      if (updates.loanId !== undefined) tx.loanId = updates.loanId || null;
+
+      Object.assign(tx, updates);
+      this.save();
+      return { type: 'rule_updated', transaction: tx };
     }
+
+    // Check if updating an override
+    const override = (this.data.finance.overrides || []).find(o => o.id === id || o.transactionId === id);
+    if (override) {
+      if (updates.amount !== undefined) {
+        override.amount = parseSafe(updates.amount, override.amount);
+      }
+      if (updates.title !== undefined) override.title = updates.title;
+      if (updates.category !== undefined) override.category = updates.category;
+      if (updates.dayOfMonth !== undefined) {
+        let d = parseInt(updates.dayOfMonth, 10);
+        if (!isNaN(d)) override.dayOfMonth = Math.min(31, Math.max(1, d));
+      }
+      if (updates.notes !== undefined) override.notes = updates.notes;
+      this.save();
+      return { type: 'override_updated', transaction: override };
+    }
+
     return null;
+  }
+
+  moveTransactionDay(id, targetDay, monthKey) {
+    const safeDay = Math.min(31, Math.max(1, parseInt(targetDay, 10) || 1));
+    const tx = (this.data.finance.transactions || []).find(t => t.id === id);
+    if (tx) {
+      tx.dayOfMonth = safeDay;
+      if (tx.startDate) {
+        const parts = tx.startDate.split('-');
+        tx.startDate = `${parts[0]}-${parts[1] || '01'}-${String(safeDay).padStart(2, '0')}`;
+      }
+      if (monthKey) {
+        this.createMonthOverride(id, monthKey, { dayOfMonth: safeDay });
+      }
+      this.save();
+      return { success: true, id, targetDay: safeDay };
+    }
+
+    const override = (this.data.finance.overrides || []).find(o => o.id === id);
+    if (override) {
+      override.dayOfMonth = safeDay;
+      this.save();
+      return { success: true, id, targetDay: safeDay };
+    }
+
+    return { success: false, error: 'Transacción no encontrada' };
   }
 
   createMonthOverride(txId, month, updates) {
     if (!this.data.finance.overrides) this.data.finance.overrides = [];
     
-    const existingIndex = this.data.finance.overrides.findIndex(o => o.transactionId === txId && o.month === month);
-    const tx = this.data.finance.transactions.find(t => t.id === txId);
+    const parseSafe = (val, fallback = 0) => {
+      if (val === undefined || val === null || val === '') return fallback;
+      if (typeof val === 'number') return isNaN(val) ? fallback : val;
+      let str = String(val).trim();
+      if (str.includes('.') && str.includes(',')) {
+        if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
+          str = str.replace(/\./g, '').replace(',', '.');
+        } else {
+          str = str.replace(/,/g, '');
+        }
+      } else if (str.includes(',')) {
+        str = str.replace(',', '.');
+      }
+      const num = parseFloat(str);
+      return isNaN(num) ? fallback : num;
+    };
 
+    const overrideById = (this.data.finance.overrides || []).find(o => o.id === txId);
+    const realTxId = overrideById ? overrideById.transactionId : txId;
+
+    const existingIndex = this.data.finance.overrides.findIndex(o => (o.transactionId === realTxId || o.id === txId) && o.month === month);
+    const existingOverride = existingIndex >= 0 ? this.data.finance.overrides[existingIndex] : overrideById;
+    const tx = (this.data.finance.transactions || []).find(t => t.id === realTxId);
+
+    const defaultAmt = existingOverride?.amount !== undefined ? existingOverride.amount : (tx ? tx.amount : 0);
     const overrideObj = {
-      id: existingIndex >= 0 ? this.data.finance.overrides[existingIndex].id : `ovr-${Date.now()}`,
-      transactionId: txId,
+      id: existingOverride ? existingOverride.id : `ovr-${Date.now()}`,
+      transactionId: realTxId,
       month: month,
-      title: updates.title || (tx ? tx.title : 'Modificación Puntual'),
-      amount: Number(updates.amount),
-      category: updates.category || (tx ? tx.category : 'General'),
-      notes: updates.notes || 'Modificado solo para este mes',
-      createdAt: new Date().toISOString()
+      title: updates.title !== undefined ? updates.title : (existingOverride?.title || (tx ? tx.title : 'Modificación Puntual')),
+      amount: updates.amount !== undefined ? parseSafe(updates.amount, defaultAmt) : defaultAmt,
+      dayOfMonth: updates.dayOfMonth !== undefined ? Number(updates.dayOfMonth) : (existingOverride?.dayOfMonth !== undefined ? existingOverride.dayOfMonth : (tx ? tx.dayOfMonth : 1)),
+      category: updates.category !== undefined ? updates.category : (existingOverride?.category || (tx ? tx.category : 'General')),
+      excluded: updates.excluded !== undefined ? Boolean(updates.excluded) : (existingOverride?.excluded || false),
+      notes: updates.notes !== undefined ? updates.notes : (existingOverride?.notes || 'Modificado solo para este mes'),
+      createdAt: existingOverride?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     if (existingIndex >= 0) {
@@ -407,21 +704,49 @@ class Database {
     return overrideObj;
   }
 
+  excludeTransactionFromMonth(txId, month) {
+    return this.createMonthOverride(txId, month, { excluded: true, amount: 0, notes: 'Excluido solo para este mes' });
+  }
+
   deleteMonthOverride(overrideId) {
     if (this.data.finance.overrides) {
-      this.data.finance.overrides = this.data.finance.overrides.filter(o => o.id !== overrideId);
+      this.data.finance.overrides = this.data.finance.overrides.filter(o => o.id !== overrideId && o.transactionId !== overrideId);
       this.save();
     }
     return { success: true };
   }
 
   deleteFinanceTransaction(id) {
-    this.data.finance.transactions = this.data.finance.transactions.filter(t => t.id !== id);
-    if (this.data.finance.overrides) {
-      this.data.finance.overrides = this.data.finance.overrides.filter(o => o.transactionId !== id);
+    // Determine if id is an override id or transaction id
+    const override = (this.data.finance.overrides || []).find(o => o.id === id);
+    const targetTxId = override ? override.transactionId : id;
+
+    // Delete associated loan if applicable
+    const tx = (this.data.finance.transactions || []).find(t => t.id === targetTxId || t.id === id);
+    if (tx && tx.loanId) {
+      this.data.finance.loans = (this.data.finance.loans || []).filter(l => l.id !== tx.loanId);
     }
+
+    // Delete master transaction
+    this.data.finance.transactions = (this.data.finance.transactions || []).filter(t => t.id !== targetTxId && t.id !== id);
+
+    // Delete all overrides for this transaction (or this specific override)
+    if (this.data.finance.overrides) {
+      this.data.finance.overrides = this.data.finance.overrides.filter(o => o.transactionId !== targetTxId && o.id !== id);
+    }
+
+    // Clean up payments for this transaction
+    if (this.data.finance.payments) {
+      Object.keys(this.data.finance.payments).forEach(monthKey => {
+        if (this.data.finance.payments[monthKey]) {
+          delete this.data.finance.payments[monthKey][targetTxId];
+          delete this.data.finance.payments[monthKey][id];
+        }
+      });
+    }
+
     this.save();
-    return { success: true, id };
+    return { success: true, id: targetTxId };
   }
 
   togglePaymentStatus(month, txId, paid) {
@@ -458,36 +783,105 @@ class Database {
       if (!tx.active) return;
 
       // Filter by start and end date if defined
-      if (tx.startDate && monthKey < tx.startDate) return;
-      if (tx.endDate && monthKey > tx.endDate) return;
+      const txStartMonth = tx.startDate ? tx.startDate.slice(0, 7) : null;
+      const txEndMonth = tx.endDate ? tx.endDate.slice(0, 7) : null;
+      if (txStartMonth && monthKey < txStartMonth) return;
+      if (txEndMonth && monthKey > txEndMonth) return;
+
+      // Custom active months restriction (e.g. paying car insurance 10 of 12 months)
+      if (Array.isArray(tx.activeMonths) && tx.activeMonths.length > 0 && !tx.activeMonths.includes(currentMonthNumber)) {
+        return;
+      }
 
       // Check frequency applicability
       let applies = false;
       if (tx.frequency === 'mensual') {
         applies = true;
       } else if (tx.frequency === 'trimestral') {
-        applies = (currentMonthNumber % 3 === 0);
+        let baseMonth = tx.monthOfYear ? Number(tx.monthOfYear) : null;
+        if (!baseMonth && tx.startDate) {
+          const parts = tx.startDate.split('-');
+          if (parts[1]) baseMonth = parseInt(parts[1], 10);
+        }
+        if (!baseMonth || isNaN(baseMonth)) baseMonth = 1;
+        applies = ((currentMonthNumber - baseMonth) % 3 + 3) % 3 === 0;
       } else if (tx.frequency === 'semestral') {
-        applies = (currentMonthNumber === 6 || currentMonthNumber === 12);
+        let baseMonth = tx.monthOfYear ? Number(tx.monthOfYear) : null;
+        if (!baseMonth && tx.startDate) {
+          const parts = tx.startDate.split('-');
+          if (parts[1]) baseMonth = parseInt(parts[1], 10);
+        }
+        if (!baseMonth || isNaN(baseMonth)) baseMonth = 6;
+        applies = ((currentMonthNumber - baseMonth) % 6 + 6) % 6 === 0;
       } else if (tx.frequency === 'anual') {
-        applies = (tx.monthOfYear ? tx.monthOfYear === currentMonthNumber : currentMonthNumber === 1);
+        let annualMonth = tx.monthOfYear ? Number(tx.monthOfYear) : null;
+        if (!annualMonth && tx.startDate) {
+          const parts = tx.startDate.split('-');
+          if (parts[1]) annualMonth = parseInt(parts[1], 10);
+        }
+        if (!annualMonth || isNaN(annualMonth)) annualMonth = 1;
+        applies = (currentMonthNumber === annualMonth);
       } else if (tx.frequency === 'puntual') {
-        applies = tx.startDate === monthKey;
+        applies = tx.startDate === monthKey || (tx.startDate && tx.startDate.startsWith(monthKey));
       }
 
       if (applies) {
         const override = overrides.find(o => o.transactionId === tx.id);
+        if (override && override.excluded) {
+          // Transaction explicitly excluded/deleted for this month
+          return;
+        }
         const paymentInfo = monthPayments[tx.id] || { paid: false, date: null };
-        const safeDay = Math.min(Math.max(Number(tx.dayOfMonth) || 1, 1), daysInMonth);
+
+        let itemDay = Number(tx.dayOfMonth) || 1;
+        if (override && override.dayOfMonth !== undefined && override.dayOfMonth !== null) {
+          itemDay = Number(override.dayOfMonth);
+        } else if (tx.dayOfMonth) {
+          itemDay = Number(tx.dayOfMonth);
+        } else if (tx.frequency === 'puntual' && tx.startDate && tx.startDate.length >= 10) {
+          const parts = tx.startDate.split('-');
+          if (parts[2]) {
+            const parsedDay = parseInt(parts[2], 10);
+            if (!isNaN(parsedDay)) itemDay = parsedDay;
+          }
+        }
+        const safeDay = Math.min(Math.max(Math.floor(itemDay) || 1, 1), daysInMonth);
+
+        // Determine effective amount based on rateSteps for this month (e.g. mortgage year 1 vs year 2, salary raises)
+        let effectiveAmount = tx.amount;
+        let activeRateStep = null;
+        if (Array.isArray(tx.rateSteps) && tx.rateSteps.length > 0) {
+          const matchingStep = tx.rateSteps.find(step => {
+            const stepStart = step.startDate ? step.startDate.slice(0, 7) : null;
+            const stepEnd = step.endDate ? step.endDate.slice(0, 7) : null;
+            if (stepStart && monthKey < stepStart) return false;
+            if (stepEnd && monthKey > stepEnd) return false;
+            return true;
+          });
+          if (matchingStep && matchingStep.amount !== undefined && matchingStep.amount !== null) {
+            effectiveAmount = Number(matchingStep.amount) || 0;
+            activeRateStep = matchingStep;
+          }
+        }
+
+        const categories = this.data.finance.categories || [];
+        const catName = override ? override.category : tx.category;
+        const catObj = categories.find(c => c.name.toLowerCase() === (catName || '').toLowerCase());
+        const isRecurring = tx.frequency !== 'puntual';
 
         items.push({
           id: tx.id,
           title: override ? override.title : tx.title,
-          originalAmount: tx.amount,
-          amount: override ? override.amount : tx.amount,
+          originalAmount: effectiveAmount,
+          amount: override ? override.amount : effectiveAmount,
           type: tx.type,
-          category: override ? override.category : tx.category,
+          category: catName || 'General',
+          categoryGroup: catObj?.group || 'Varios',
+          categoryColor: catObj?.color || '#f59e0b',
+          categoryIcon: catObj?.icon || 'Tag',
           frequency: tx.frequency,
+          isRecurring,
+          date: tx.startDate || null,
           dayOfMonth: safeDay,
           isOverridden: Boolean(override),
           overrideId: override ? override.id : null,
@@ -495,7 +889,13 @@ class Database {
           paid: Boolean(paymentInfo.paid),
           paidDate: paymentInfo.date,
           loanId: tx.loanId || null,
-          endDate: tx.endDate || null
+          startDate: tx.startDate || null,
+          endDate: tx.endDate || null,
+          active: tx.active !== false,
+          activeMonths: tx.activeMonths || null,
+          rateSteps: tx.rateSteps || [],
+          activeRateStep,
+          notes: tx.notes || ''
         });
       }
     });
@@ -511,17 +911,60 @@ class Database {
     const paidExpenses = items.filter(i => i.type === 'gasto' && i.paid).reduce((sum, i) => sum + i.amount, 0);
     const currentActualBalance = paidIncome - paidExpenses;
 
-    // Expenses by category
+    // Expenses by category & group
+    const categories = this.data.finance.categories || [];
     const categoryBreakdown = {};
+    const groupBreakdown = {};
+
     items.filter(i => i.type === 'gasto').forEach(i => {
       categoryBreakdown[i.category] = (categoryBreakdown[i.category] || 0) + i.amount;
+
+      const grp = i.categoryGroup || 'Varios';
+      if (!groupBreakdown[grp]) {
+        groupBreakdown[grp] = { group: grp, amount: 0, count: 0 };
+      }
+      groupBreakdown[grp].amount += i.amount;
+      groupBreakdown[grp].count += 1;
     });
 
-    const categoryList = Object.keys(categoryBreakdown).map(cat => ({
-      name: cat,
-      amount: categoryBreakdown[cat],
-      percentage: totalExpenses > 0 ? Math.round((categoryBreakdown[cat] / totalExpenses) * 100) : 0
+    const categoryList = Object.keys(categoryBreakdown).map(cat => {
+      const catObj = categories.find(c => c.name.toLowerCase() === cat.toLowerCase());
+      return {
+        name: cat,
+        group: catObj?.group || 'Varios',
+        color: catObj?.color || '#f59e0b',
+        icon: catObj?.icon || 'Tag',
+        amount: categoryBreakdown[cat],
+        percentage: totalExpenses > 0 ? Math.round((categoryBreakdown[cat] / totalExpenses) * 100) : 0
+      };
+    }).sort((a, b) => b.amount - a.amount);
+
+    const groupList = Object.values(groupBreakdown).map(g => ({
+      ...g,
+      percentage: totalExpenses > 0 ? Math.round((g.amount / totalExpenses) * 100) : 0
     })).sort((a, b) => b.amount - a.amount);
+
+    // Date calculations & Upcoming bills forecast
+    const today = new Date();
+    const isCurrentCalendarMonth = (today.getFullYear() === currentYear && (today.getMonth() + 1) === currentMonthNumber);
+    const todayDay = isCurrentCalendarMonth ? today.getDate() : 1;
+
+    const pendingExpenses = items.filter(i => i.type === 'gasto' && !i.paid);
+    const pendingExpensesTotal = pendingExpenses.reduce((sum, i) => sum + i.amount, 0);
+
+    // Upcoming in next 7 days
+    const upcoming7Days = pendingExpenses.filter(i => {
+      if (isCurrentCalendarMonth) {
+        return i.dayOfMonth >= todayDay && i.dayOfMonth <= (todayDay + 7);
+      }
+      return true;
+    });
+    const upcoming7DaysTotal = upcoming7Days.reduce((sum, i) => sum + i.amount, 0);
+
+    const recurringExpensesCount = items.filter(i => i.type === 'gasto' && i.isRecurring).length;
+    const everydayExpensesCount = items.filter(i => i.type === 'gasto' && !i.isRecurring).length;
+    const recurringExpensesTotal = items.filter(i => i.type === 'gasto' && i.isRecurring).reduce((sum, i) => sum + i.amount, 0);
+    const everydayExpensesTotal = items.filter(i => i.type === 'gasto' && !i.isRecurring).reduce((sum, i) => sum + i.amount, 0);
 
     // Build Daily Calendar Map (1 to daysInMonth)
     const dailyBreakdown = {};
@@ -562,6 +1005,8 @@ class Database {
       monthNumber: currentMonthNumber,
       daysInMonth,
       firstDayOfWeek, // 0 = Lunes, 6 = Domingo
+      todayDay,
+      isCurrentCalendarMonth,
       items,
       dailyBreakdown,
       totalIncome,
@@ -571,7 +1016,16 @@ class Database {
       paidExpenses,
       currentActualBalance,
       categoryList,
-      pendingExpensesCount: items.filter(i => i.type === 'gasto' && !i.paid).length
+      groupList,
+      pendingExpensesCount: pendingExpenses.length,
+      pendingExpensesTotal,
+      upcoming7Days,
+      upcoming7DaysTotal,
+      recurringExpensesCount,
+      everydayExpensesCount,
+      recurringExpensesTotal,
+      everydayExpensesTotal,
+      allCategories: categories
     };
   }
 
@@ -645,32 +1099,49 @@ class Database {
         const monthKey = `${year}-${String(m).padStart(2, '0')}`;
 
         transactions.forEach(tx => {
-          if (tx.startDate && monthKey < tx.startDate) return;
-          if (tx.endDate && monthKey > tx.endDate) return;
+          const txStartMonth = tx.startDate ? tx.startDate.slice(0, 7) : null;
+          const txEndMonth = tx.endDate ? tx.endDate.slice(0, 7) : null;
+          if (txStartMonth && monthKey < txStartMonth) return;
+          if (txEndMonth && monthKey > txEndMonth) return;
+          if (Array.isArray(tx.activeMonths) && tx.activeMonths.length > 0 && !tx.activeMonths.includes(m)) return;
 
           let applies = false;
           if (tx.frequency === 'mensual') applies = true;
           else if (tx.frequency === 'trimestral') applies = (m % 3 === 0);
           else if (tx.frequency === 'semestral') applies = (m === 6 || m === 12);
           else if (tx.frequency === 'anual') applies = (tx.monthOfYear ? tx.monthOfYear === m : m === 1);
-          else if (tx.frequency === 'puntual') applies = (tx.startDate === monthKey);
+          else if (tx.frequency === 'puntual') applies = (tx.startDate === monthKey || (tx.startDate && tx.startDate.startsWith(monthKey)));
 
           if (!applies) return;
+
+          let baseAmount = tx.amount;
+          if (Array.isArray(tx.rateSteps) && tx.rateSteps.length > 0) {
+            const matchingStep = tx.rateSteps.find(step => {
+              const stepStart = step.startDate ? step.startDate.slice(0, 7) : null;
+              const stepEnd = step.endDate ? step.endDate.slice(0, 7) : null;
+              if (stepStart && monthKey < stepStart) return false;
+              if (stepEnd && monthKey > stepEnd) return false;
+              return true;
+            });
+            if (matchingStep && matchingStep.amount !== undefined && matchingStep.amount !== null) {
+              baseAmount = Number(matchingStep.amount) || 0;
+            }
+          }
 
           if (tx.type === 'ingreso') {
             // Apply salary growth if category is Sueldo/Freelance or transaction has yearlyIncreasePct
             const growth = tx.yearlyIncreasePct ? Math.pow(1 + (tx.yearlyIncreasePct / 100), i) : incomeGrowthFactor;
-            annualIncome += tx.amount * growth;
+            annualIncome += baseAmount * growth;
           } else {
             if (tx.loanId) {
               // Fixed debt payments don't inflate if fixed rate
-              annualDebtPayments += tx.amount;
+              annualDebtPayments += baseAmount;
             } else if (tx.category === 'Vivienda' || tx.category === 'Suministros' || tx.category === 'Seguros' || tx.category === 'Impuestos') {
               const growth = tx.yearlyIncreasePct ? Math.pow(1 + (tx.yearlyIncreasePct / 100), i) : inflationFactor;
-              annualFixedExpenses += tx.amount * growth;
+              annualFixedExpenses += baseAmount * growth;
             } else {
               const growth = tx.yearlyIncreasePct ? Math.pow(1 + (tx.yearlyIncreasePct / 100), i) : inflationFactor;
-              annualDiscretionaryExpenses += tx.amount * growth;
+              annualDiscretionaryExpenses += baseAmount * growth;
             }
           }
         });
@@ -805,10 +1276,8 @@ class Database {
 
   deleteLoan(id) {
     this.data.finance.loans = (this.data.finance.loans || []).filter(l => l.id !== id);
-    // Unlink transaction or keep it
-    (this.data.finance.transactions || []).forEach(t => {
-      if (t.loanId === id) t.loanId = null;
-    });
+    // Also remove recurring transactions generated for this loan
+    this.data.finance.transactions = (this.data.finance.transactions || []).filter(t => t.loanId !== id);
     this.save();
     return { success: true, id };
   }

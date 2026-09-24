@@ -218,7 +218,29 @@ export const initialSeedData = {
         "fin-10": { paid: false, date: null },
         "fin-12": { paid: true, date: "2026-08-05" }
       }
-    }
+    },
+    categories: [
+      { id: "cat-vivienda", name: "Vivienda", group: "Hogar & Vivienda", color: "#3b82f6", icon: "Home", isDefault: true },
+      { id: "cat-suministros", name: "Suministros", group: "Hogar & Vivienda", color: "#0ea5e9", icon: "Zap", isDefault: true },
+      { id: "cat-comunicaciones", name: "Comunicaciones", group: "Hogar & Vivienda", color: "#06b6d4", icon: "Wifi", isDefault: true },
+      { id: "cat-seguros", name: "Seguros", group: "Hogar & Vivienda", color: "#6366f1", icon: "Shield", isDefault: true },
+      { id: "cat-vehiculo", name: "Vehículo", group: "Movilidad", color: "#f59e0b", icon: "Car", isDefault: true },
+      { id: "cat-combustible", name: "Combustible", group: "Movilidad", color: "#d97706", icon: "Fuel", isDefault: true },
+      { id: "cat-transporte", name: "Transporte Público", group: "Movilidad", color: "#b45309", icon: "Bus", isDefault: true },
+      { id: "cat-alimentacion", name: "Alimentación", group: "Día a Día", color: "#10b981", icon: "ShoppingCart", isDefault: true },
+      { id: "cat-salud", name: "Salud & Farmacia", group: "Día a Día", color: "#14b8a6", icon: "HeartPulse", isDefault: true },
+      { id: "cat-personal", name: "Cuidado Personal", group: "Día a Día", color: "#84cc16", icon: "Smile", isDefault: true },
+      { id: "cat-suscripciones", name: "Suscripciones", group: "Ocio & Suscripciones", color: "#a855f7", icon: "Tv", isDefault: true },
+      { id: "cat-restaurantes", name: "Restaurantes & Bares", group: "Ocio & Suscripciones", color: "#ec4899", icon: "Utensils", isDefault: true },
+      { id: "cat-ocio", name: "Ocio", group: "Ocio & Suscripciones", color: "#f43f5e", icon: "Gamepad2", isDefault: true },
+      { id: "cat-impuestos", name: "Impuestos", group: "Finanzas", color: "#64748b", icon: "FileText", isDefault: true },
+      { id: "cat-prestamos", name: "Préstamos & Deuda", group: "Finanzas", color: "#475569", icon: "CreditCard", isDefault: true },
+      { id: "cat-ahorro", name: "Ahorro & Inversión", group: "Finanzas", color: "#8b5cf6", icon: "PiggyBank", isDefault: true },
+      { id: "cat-sueldo", name: "Sueldo", group: "Ingresos", color: "#22c55e", icon: "Briefcase", isDefault: true },
+      { id: "cat-freelance", name: "Freelance", group: "Ingresos", color: "#10b981", icon: "Laptop", isDefault: true },
+      { id: "cat-otros-ingresos", name: "Otros Ingresos", group: "Ingresos", color: "#34d399", icon: "DollarSign", isDefault: true },
+      { id: "cat-otros", name: "Otros", group: "Varios", color: "#94a3b8", icon: "Tag", isDefault: true }
+    ]
   },
   domotics: {
     connectors: {

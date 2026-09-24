@@ -131,6 +131,28 @@ export const api = {
     const res = await fetch(`${BASE_URL}/finance/month/${monthKey}`);
     return handleResponse(res);
   },
+  async getYearFinance(year) {
+    const res = await fetch(`${BASE_URL}/finance/year/${year}`);
+    return handleResponse(res);
+  },
+  async getFinanceCategories() {
+    const res = await fetch(`${BASE_URL}/finance/categories`);
+    return handleResponse(res);
+  },
+  async addFinanceCategory(data) {
+    const res = await fetch(`${BASE_URL}/finance/categories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  },
+  async deleteFinanceCategory(id) {
+    const res = await fetch(`${BASE_URL}/finance/categories/${id}`, {
+      method: 'DELETE'
+    });
+    return handleResponse(res);
+  },
   async getFinanceTransactions() {
     const res = await fetch(`${BASE_URL}/finance/transactions`);
     return handleResponse(res);
@@ -148,6 +170,20 @@ export const api = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
+    });
+    return handleResponse(res);
+  },
+  async toggleTransactionActive(id) {
+    const res = await fetch(`${BASE_URL}/finance/transactions/${id}/toggle`, {
+      method: 'PATCH'
+    });
+    return handleResponse(res);
+  },
+  async moveTransactionDay(id, targetDay, month) {
+    const res = await fetch(`${BASE_URL}/finance/transactions/${id}/move`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetDay, month })
     });
     return handleResponse(res);
   },
@@ -176,6 +212,14 @@ export const api = {
   async deleteFinanceTransaction(id) {
     const res = await fetch(`${BASE_URL}/finance/transactions/${id}`, {
       method: 'DELETE'
+    });
+    return handleResponse(res);
+  },
+  async excludeTransactionFromMonth(id, month) {
+    const res = await fetch(`${BASE_URL}/finance/transactions/${id}/exclude-month`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ month })
     });
     return handleResponse(res);
   },
@@ -325,5 +369,20 @@ export const api = {
       method: 'DELETE'
     });
     return handleResponse(res);
+  },
+
+  // DATABASE & PERSISTENCE
+  async getDatabaseStatus() {
+    const res = await fetch(`${BASE_URL}/database/status`);
+    return handleResponse(res);
+  },
+  async createDatabaseBackup() {
+    const res = await fetch(`${BASE_URL}/database/backup`, {
+      method: 'POST'
+    });
+    return handleResponse(res);
+  },
+  getDatabaseExportUrl() {
+    return `${BASE_URL}/database/export`;
   }
 };

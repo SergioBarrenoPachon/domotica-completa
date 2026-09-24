@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Home, UtensilsCrossed, Landmark, Lightbulb, FolderCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function NavPill({ currentView, onChangeView, alertsCount = 0, shoppingPending = 0 }) {
+function NavPillComponent({ currentView, onChangeView, alertsCount = 0, shoppingPending = 0 }) {
   const tabs = [
     {
       id: 'dashboard',
@@ -40,9 +40,9 @@ export default function NavPill({ currentView, onChangeView, alertsCount = 0, sh
   ];
 
   return (
-    <nav className="fixed bottom-3 inset-x-0 z-40 px-3 pointer-events-none">
-      <div className="max-w-md md:max-w-xl mx-auto pointer-events-auto">
-        <div className="glass-pill rounded-3xl p-1.5 flex items-center justify-around shadow-2xl border border-white/15">
+    <nav className="fixed bottom-3 sm:bottom-5 inset-x-0 z-40 px-3 pointer-events-none pb-[env(safe-area-inset-bottom)]">
+      <div className="max-w-md md:max-w-lg mx-auto pointer-events-auto">
+        <div className="glass-ios-dock rounded-[28px] sm:rounded-[32px] p-1.5 sm:p-2 flex items-center justify-around shadow-ambient border border-white/15">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentView === tab.id;
@@ -50,36 +50,38 @@ export default function NavPill({ currentView, onChangeView, alertsCount = 0, sh
             return (
               <motion.button
                 key={tab.id}
-                whileTap={{ scale: 0.88 }}
+                whileTap={{ scale: 0.90 }}
                 onClick={() => onChangeView(tab.id)}
-                className={`relative flex flex-col items-center justify-center min-h-[56px] flex-1 py-1.5 px-1 rounded-2xl transition-all duration-200 ${
+                className={`relative flex flex-col items-center justify-center min-h-[54px] sm:min-h-[58px] flex-1 py-1 px-1 rounded-2xl transition-all duration-200 ${
                   isActive
-                    ? 'text-white font-bold'
-                    : 'text-slate-400 hover:text-slate-200 font-medium'
+                    ? 'text-white'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
                 aria-label={tab.label}
               >
-                {/* Active Indicator Background */}
+                {/* Active Indicator Background Squircle */}
                 {isActive && (
                   <motion.div
                     layoutId="activePillIndicator"
-                    className={`absolute inset-0 bg-gradient-to-tr ${tab.color} opacity-20 rounded-2xl border border-white/20`}
-                    transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                    className="absolute inset-0 bg-white/[0.12] rounded-2xl border border-white/20 shadow-inner-light backdrop-blur-xl"
+                    transition={{ type: 'spring', stiffness: 480, damping: 34 }}
                   />
                 )}
 
-                {/* Icon with motion */}
-                <div className="relative">
+                {/* Icon with subtle elevation */}
+                <div className="relative z-10">
                   <Icon
-                    className={`w-6 h-6 transition-transform ${
-                      isActive ? 'scale-110 text-white stroke-[2.5]' : 'stroke-[1.75]'
+                    className={`w-5 h-5 sm:w-6 sm:h-6 transition-all duration-200 ${
+                      isActive
+                        ? 'scale-110 text-white stroke-[2.2] drop-shadow-[0_2px_8px_rgba(255,255,255,0.3)]'
+                        : 'stroke-[1.6]'
                     }`}
                   />
 
                   {/* Badge */}
                   {tab.badge && (
                     <span
-                      className={`absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center shadow-lg ${
+                      className={`absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full text-[9.5px] font-extrabold text-white flex items-center justify-center shadow-md ${
                         tab.badgeColor || 'bg-brand-500'
                       }`}
                     >
@@ -89,15 +91,17 @@ export default function NavPill({ currentView, onChangeView, alertsCount = 0, sh
                 </div>
 
                 {/* Label */}
-                <span className={`text-[11px] mt-0.5 tracking-tight font-display ${isActive ? 'text-white' : 'text-slate-400'}`}>
+                <span className={`relative z-10 text-[10.5px] mt-0.5 tracking-tight font-medium ${
+                  isActive ? 'text-white font-bold' : 'text-slate-400'
+                }`}>
                   {tab.label}
                 </span>
 
-                {/* Dot under active tab */}
+                {/* Micro-dot under active tab */}
                 {isActive && (
                   <motion.span
                     layoutId="activeDot"
-                    className="w-1.5 h-1.5 rounded-full bg-brand-400 mt-0.5 shadow-glow-brand"
+                    className="relative z-10 w-1 h-1 rounded-full bg-white mt-0.5 shadow-sm"
                   />
                 )}
               </motion.button>
@@ -108,3 +112,6 @@ export default function NavPill({ currentView, onChangeView, alertsCount = 0, sh
     </nav>
   );
 }
+
+export default memo(NavPillComponent);
+

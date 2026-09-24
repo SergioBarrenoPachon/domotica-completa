@@ -14,7 +14,6 @@ import {
   CalendarDays, 
   CheckCircle, 
   Edit3, 
-  AlertCircle,
   Clock,
   Search
 } from 'lucide-react';
@@ -22,7 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import Modal from '../components/Modal';
 
-export default function MealsView({ api, onRefreshDashboard }) {
+function MealsView({ api, onRefreshDashboard }) {
   const [activeTab, setActiveTab] = useState('planner'); // 'planner' | 'pantry' | 'shopping'
   const [loading, setLoading] = useState(true);
 
@@ -139,24 +138,24 @@ export default function MealsView({ api, onRefreshDashboard }) {
   };
 
   const handleDeletePantryItem = async (id) => {
-    if (window.confirm('¿Eliminar este alimento del inventario?')) {
-      try {
-        await api.deletePantryItem(id);
-        setPantryItems(pantryItems.filter(p => p.id !== id));
-        onRefreshDashboard();
-      } catch (err) {
-        console.error(err);
-      }
+    try {
+      await api.deletePantryItem(id);
+      setPantryItems(pantryItems.filter(p => p.id !== id));
+      onRefreshDashboard();
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  // 3. SHOPPING LIST ACTIONS & SMART SYNC
+  // 3. SHOPPING LIST ACTIONS
   const handleToggleShopping = async (item) => {
     try {
-      const updated = await api.updateShoppingItem(item.id, { checked: !item.checked });
+      const newChecked = !item.checked;
+      const updated = await api.toggleShoppingItem(item.id, newChecked);
+      setPantryItems(prev => prev.map(p => p.name.toLowerCase() === item.name.toLowerCase() ? { ...p, inShoppingList: false } : p));
       setShoppingItems(shoppingItems.map(s => s.id === item.id ? updated : s));
-      if (!item.checked) {
-        confetti({ particleCount: 30, spread: 45, origin: { y: 0.8 } });
+      if (newChecked) {
+        confetti({ particleCount: 25, spread: 45, origin: { y: 0.8 } });
       }
       onRefreshDashboard();
     } catch (err) {
@@ -166,7 +165,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
 
   const handleSyncShopping = async () => {
     try {
-      const res = await api.syncShoppingList();
+      const res = await api.syncShoppingFromPantry();
       setShoppingItems(res.data || []);
       setSyncToast(res.message);
       if (res.newlyAddedCount > 0) {
@@ -222,18 +221,18 @@ export default function MealsView({ api, onRefreshDashboard }) {
   });
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-24">
       
       {/* Toast Notification */}
       <AnimatePresence>
         {syncToast && (
           <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.9 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 p-4 rounded-2xl bg-emerald-600 text-white font-bold text-sm shadow-2xl border border-emerald-400 flex items-center gap-2 max-w-sm"
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3.5 rounded-full glass-ios-elevated text-white font-semibold text-xs sm:text-sm shadow-ambient border border-emerald-400/30 flex items-center gap-2.5 max-w-sm"
           >
-            <Sparkles className="w-5 h-5 flex-shrink-0" />
+            <Sparkles className="w-4 h-4 text-emerald-300 flex-shrink-0" />
             <span>{syncToast}</span>
           </motion.div>
         )}
@@ -242,58 +241,58 @@ export default function MealsView({ api, onRefreshDashboard }) {
       {/* Header & Subtabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-display flex items-center gap-2.5">
-            <span className="p-2 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-display tracking-tight flex items-center gap-2.5">
+            <span className="w-11 h-11 rounded-2xl bg-emerald-500/15 text-emerald-300 flex items-center justify-center border border-emerald-400/25 shadow-inner-light">
               <UtensilsCrossed className="w-6 h-6" />
             </span>
             Comidas, Despensa & Compra
           </h2>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
             Menú semanal inteligente con sincronización automática de ingredientes faltantes.
           </p>
         </div>
 
-        {/* Big Touch Subtabs */}
-        <div className="flex p-1.5 rounded-2xl bg-surface border border-white/10 overflow-x-auto no-scrollbar">
+        {/* Big Touch Subtabs (iOS Segment Controller) */}
+        <div className="p-1.5 rounded-full bg-white/[0.05] border border-white/10 flex items-center gap-1 overflow-x-auto no-scrollbar shadow-inner-light">
           <button
             onClick={() => setActiveTab('planner')}
-            className={`min-h-touch px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+            className={`min-h-[42px] px-4 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition-all flex-shrink-0 touch-press ${
               activeTab === 'planner'
-                ? 'bg-emerald-500 text-white shadow-glow-brand'
+                ? 'bg-white/15 text-white border border-white/20 shadow-inner-light'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <CalendarDays className="w-4 h-4" />
+            <CalendarDays className="w-4 h-4 text-emerald-400" />
             <span>Menú Semanal</span>
           </button>
 
           <button
             onClick={() => setActiveTab('pantry')}
-            className={`min-h-touch px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+            className={`min-h-[42px] px-4 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition-all flex-shrink-0 touch-press ${
               activeTab === 'pantry'
-                ? 'bg-emerald-500 text-white shadow-glow-brand'
+                ? 'bg-white/15 text-white border border-white/20 shadow-inner-light'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Refrigerator className="w-4 h-4" />
+            <Refrigerator className="w-4 h-4 text-emerald-400" />
             <span>Despensa & Stock</span>
             {pantryItems.filter(p => p.quantity <= p.minQuantity).length > 0 && (
-              <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
+              <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
             )}
           </button>
 
           <button
             onClick={() => setActiveTab('shopping')}
-            className={`min-h-touch px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${
+            className={`min-h-[42px] px-4 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition-all flex-shrink-0 touch-press ${
               activeTab === 'shopping'
-                ? 'bg-emerald-500 text-white shadow-glow-brand'
+                ? 'bg-white/15 text-white border border-white/20 shadow-inner-light'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <ShoppingCart className="w-4 h-4" />
-            <span>Lista de la Compra</span>
+            <ShoppingCart className="w-4 h-4 text-emerald-400" />
+            <span>Lista Compra</span>
             {shoppingItems.filter(s => !s.checked).length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 text-emerald-300 font-extrabold">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 font-extrabold border border-emerald-400/30">
                 {shoppingItems.filter(s => !s.checked).length}
               </span>
             )}
@@ -305,47 +304,47 @@ export default function MealsView({ api, onRefreshDashboard }) {
       {activeTab === 'planner' && (
         <div className="space-y-6">
           {/* Action Bar */}
-          <div className="p-4 rounded-3xl glass-panel border border-white/10 flex flex-wrap items-center justify-between gap-3">
+          <div className="p-4 sm:p-5 rounded-[28px] glass-ios border border-white/12 flex flex-wrap items-center justify-between gap-3 shadow-ambient-sm">
             <div>
-              <p className="text-sm font-bold text-white font-display">Planificación Semanal</p>
-              <p className="text-xs text-slate-400">Pulsa en cualquier plato para editarlo rápidamente</p>
+              <p className="text-sm font-bold text-white font-display tracking-tight">Planificación Semanal</p>
+              <p className="text-xs text-slate-400">Toca cualquier plato para editarlo rápidamente</p>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
               <button
                 onClick={handleSuggestMenu}
-                className="flex-1 sm:flex-initial min-h-touch px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 touch-press"
+                className="flex-1 sm:flex-initial min-h-touch px-4 py-2.5 rounded-2xl bg-white/[0.12] hover:bg-white/[0.18] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/15 shadow-inner-light touch-press"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>Sugerir Menú Completo</span>
+                <Sparkles className="w-4 h-4 text-emerald-300" />
+                <span>Sugerir Menú</span>
               </button>
 
               <button
                 onClick={handleSyncShopping}
-                className="flex-1 sm:flex-initial min-h-touch px-4 py-2.5 rounded-2xl bg-surface-hover hover:bg-surface-active border border-emerald-500/40 text-emerald-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 touch-press"
+                className="flex-1 sm:flex-initial min-h-touch px-4 py-2.5 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/30 text-emerald-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 touch-press"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>Sincronizar con Compra</span>
+                <span>Sincronizar Compra</span>
               </button>
             </div>
           </div>
 
           {/* Cards por Día de la Semana */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
             {mealDays.map((day) => (
               <motion.div
                 key={day.id}
                 whileHover={{ y: -2 }}
-                className="glass-panel p-5 rounded-3xl border border-white/10 hover:border-emerald-500/30 flex flex-col justify-between space-y-4"
+                className="glass-ios p-5 sm:p-6 rounded-[28px] border border-white/10 hover:border-emerald-400/30 flex flex-col justify-between space-y-4 shadow-ambient-sm"
               >
                 {/* Day Header */}
-                <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                  <span className="text-lg font-bold text-white font-display capitalize">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <span className="text-lg font-bold text-white font-display capitalize tracking-tight">
                     {day.label}
                   </span>
                   <button
                     onClick={() => setEditDayModal(day)}
-                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-emerald-400 touch-press min-h-[40px] min-w-[40px] flex items-center justify-center"
+                    className="w-9 h-9 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-slate-400 hover:text-emerald-300 touch-press flex items-center justify-center transition-all"
                     aria-label={`Editar menú del ${day.label}`}
                   >
                     <Edit3 className="w-4 h-4" />
@@ -353,12 +352,12 @@ export default function MealsView({ api, onRefreshDashboard }) {
                 </div>
 
                 {/* Day Meals */}
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   <div
                     onClick={() => setEditDayModal(day)}
-                    className="p-3 rounded-2xl bg-black/25 border border-white/5 cursor-pointer hover:bg-black/40 transition-colors"
+                    className="p-3 rounded-2xl bg-white/[0.03] border border-white/8 cursor-pointer hover:bg-white/[0.06] transition-all"
                   >
-                    <div className="flex items-center justify-between text-xs text-amber-400 font-bold mb-1">
+                    <div className="text-xs text-amber-300 font-bold mb-1">
                       <span>☕ Desayuno</span>
                     </div>
                     <p className="text-xs sm:text-sm text-slate-200 line-clamp-2">
@@ -368,9 +367,9 @@ export default function MealsView({ api, onRefreshDashboard }) {
 
                   <div
                     onClick={() => setEditDayModal(day)}
-                    className="p-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/20 cursor-pointer hover:bg-emerald-950/30 transition-colors"
+                    className="p-3 rounded-2xl bg-emerald-500/[0.08] border border-emerald-400/20 cursor-pointer hover:bg-emerald-500/[0.14] transition-all"
                   >
-                    <div className="flex items-center justify-between text-xs text-emerald-400 font-bold mb-1">
+                    <div className="text-xs text-emerald-300 font-bold mb-1">
                       <span>🍽️ Almuerzo / Comida</span>
                     </div>
                     <p className="text-xs sm:text-sm font-semibold text-white line-clamp-2">
@@ -380,9 +379,9 @@ export default function MealsView({ api, onRefreshDashboard }) {
 
                   <div
                     onClick={() => setEditDayModal(day)}
-                    className="p-3 rounded-2xl bg-indigo-950/20 border border-indigo-500/20 cursor-pointer hover:bg-indigo-950/30 transition-colors"
+                    className="p-3 rounded-2xl bg-indigo-500/[0.08] border border-indigo-400/20 cursor-pointer hover:bg-indigo-500/[0.14] transition-all"
                   >
-                    <div className="flex items-center justify-between text-xs text-indigo-300 font-bold mb-1">
+                    <div className="text-xs text-indigo-300 font-bold mb-1">
                       <span>🌙 Cena</span>
                     </div>
                     <p className="text-xs sm:text-sm text-slate-200 line-clamp-2">
@@ -401,7 +400,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
         <div className="space-y-6">
           
           {/* Action & Filter Bar */}
-          <div className="glass-panel p-4 rounded-3xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="glass-ios p-4 sm:p-5 rounded-[28px] border border-white/12 flex flex-col md:flex-row items-center justify-between gap-3 shadow-ambient-sm">
             
             {/* Search Bar */}
             <div className="relative w-full md:w-72">
@@ -411,45 +410,48 @@ export default function MealsView({ api, onRefreshDashboard }) {
                 placeholder="Buscar en despensa..."
                 value={pantrySearch}
                 onChange={(e) => setPantrySearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-black/40 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500"
+                className="w-full pl-10 pr-4 py-2.5 rounded-2xl glass-input text-white placeholder-slate-500 text-xs sm:text-sm"
               />
             </div>
 
-            {/* Zones Filter */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto">
+            {/* Zones Filter (Pills) */}
+            <div className="p-1 rounded-full bg-white/[0.05] border border-white/10 flex items-center gap-1 overflow-x-auto no-scrollbar w-full md:w-auto">
               {[
                 { id: 'all', label: 'Todos', icon: Package },
                 { id: 'nevera', label: 'Nevera', icon: Refrigerator },
                 { id: 'congelador', label: 'Congelador', icon: Snowflake },
                 { id: 'despensa', label: 'Despensa', icon: Package }
-              ].map(zone => (
-                <button
-                  key={zone.id}
-                  onClick={() => setPantryZone(zone.id)}
-                  className={`min-h-[44px] px-3.5 py-1.5 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                    pantryZone === zone.id
-                      ? 'bg-emerald-500 text-white shadow-md'
-                      : 'bg-white/5 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <zone.icon className="w-3.5 h-3.5" />
-                  <span>{zone.label}</span>
-                </button>
-              ))}
+              ].map(zone => {
+                const isActive = pantryZone === zone.id;
+                return (
+                  <button
+                    key={zone.id}
+                    onClick={() => setPantryZone(zone.id)}
+                    className={`min-h-[38px] px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all touch-press ${
+                      isActive
+                        ? 'bg-white/15 text-white border border-white/20 shadow-inner-light'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <zone.icon className="w-3.5 h-3.5" />
+                    <span>{zone.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Add Button */}
             <button
               onClick={() => setNewPantryModal(true)}
-              className="w-full md:w-auto min-h-touch px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 touch-press"
+              className="w-full md:w-auto min-h-touch px-5 py-2.5 rounded-2xl bg-white/[0.12] hover:bg-white/[0.18] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/15 shadow-inner-light touch-press"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4 text-emerald-300" />
               <span>Añadir Producto</span>
             </button>
           </div>
 
-          {/* Grid de Alimentos con controles + y - TÁCTILES GIGANTES */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+          {/* Grid de Alimentos con controles + y - TÁCTILES ESTILO APPLE */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredPantry.map((item) => {
               const isLowStock = item.quantity <= item.minQuantity;
               const isOutOfStock = item.quantity === 0;
@@ -458,12 +460,12 @@ export default function MealsView({ api, onRefreshDashboard }) {
                 <motion.div
                   key={item.id}
                   layout
-                  className={`glass-panel p-4 rounded-3xl border transition-all flex flex-col justify-between ${
+                  className={`glass-ios p-5 rounded-[28px] border transition-all flex flex-col justify-between shadow-ambient-sm ${
                     isOutOfStock
-                      ? 'border-rose-500/40 bg-rose-950/20'
+                      ? 'border-rose-500/30 bg-rose-500/[0.05]'
                       : isLowStock
-                      ? 'border-amber-500/30 bg-amber-950/15'
-                      : 'border-white/10 hover:border-emerald-500/30'
+                      ? 'border-amber-500/30 bg-amber-500/[0.05]'
+                      : 'border-white/10 hover:border-emerald-400/30'
                   }`}
                 >
                   <div>
@@ -473,60 +475,60 @@ export default function MealsView({ api, onRefreshDashboard }) {
                           {item.zone === 'nevera' ? '❄️ Nevera' : item.zone === 'congelador' ? '🧊 Congelador' : '📦 Despensa'}
                           <span>• {item.category}</span>
                         </span>
-                        <h4 className="text-base font-bold text-white truncate mt-0.5">
+                        <h4 className="text-base font-bold text-white truncate mt-0.5 font-display tracking-tight">
                           {item.name}
                         </h4>
                       </div>
 
                       {isOutOfStock ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/30 text-rose-300 border border-rose-500/40">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/30">
                           Agotado
                         </span>
                       ) : isLowStock ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/30 text-amber-300 border border-amber-500/40">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                           Stock Bajo
                         </span>
                       ) : null}
                     </div>
 
                     {item.expiration && (
-                      <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+                      <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
                         <Clock className="w-3 h-3 text-slate-500" />
                         Caducidad: {item.expiration}
                       </p>
                     )}
                   </div>
 
-                  {/* CONTROLES TÁCTILES GIGANTES DE STOCK */}
-                  <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between gap-3">
+                  {/* CONTROLES TÁCTILES SQUIRCLE DE STOCK */}
+                  <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between gap-2">
                     <button
                       onClick={() => handleAdjustQuantity(item.id, -1)}
-                      className="min-h-[48px] min-w-[48px] rounded-2xl bg-white/10 hover:bg-rose-500/30 text-slate-200 hover:text-rose-300 flex items-center justify-center font-bold text-lg border border-white/10 touch-press"
+                      className="w-11 h-11 rounded-2xl bg-white/[0.08] hover:bg-rose-500/20 text-slate-200 hover:text-rose-300 flex items-center justify-center font-bold text-lg border border-white/10 touch-press shadow-inner-light"
                       aria-label="Restar una unidad"
                     >
-                      <Minus className="w-5 h-5" />
+                      <Minus className="w-4 h-4" />
                     </button>
 
-                    <div className="text-center min-w-[70px]">
+                    <div className="text-center min-w-[65px]">
                       <span className="text-2xl font-black text-white font-mono">
                         {item.quantity}
                       </span>
-                      <span className="text-xs text-slate-400 block -mt-1 font-medium">
+                      <span className="text-[11px] text-slate-400 block -mt-1 font-medium">
                         {item.unit}
                       </span>
                     </div>
 
                     <button
                       onClick={() => handleAdjustQuantity(item.id, 1)}
-                      className="min-h-[48px] min-w-[48px] rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 flex items-center justify-center font-bold text-lg border border-emerald-500/30 touch-press"
+                      className="w-11 h-11 rounded-2xl bg-white/[0.08] hover:bg-emerald-500/20 text-slate-200 hover:text-emerald-300 flex items-center justify-center font-bold text-lg border border-white/10 touch-press shadow-inner-light"
                       aria-label="Añadir una unidad"
                     >
-                      <Plus className="w-5 h-5" />
+                      <Plus className="w-4 h-4" />
                     </button>
 
                     <button
                       onClick={() => handleDeletePantryItem(item.id)}
-                      className="min-h-[48px] min-w-[44px] rounded-2xl text-slate-500 hover:text-rose-400 hover:bg-white/5 flex items-center justify-center touch-press ml-1"
+                      className="w-10 h-10 rounded-2xl text-slate-500 hover:text-rose-400 hover:bg-white/[0.05] flex items-center justify-center touch-press ml-1"
                       aria-label="Eliminar alimento"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -544,24 +546,24 @@ export default function MealsView({ api, onRefreshDashboard }) {
         <div className="space-y-6">
           
           {/* Header Action Bar */}
-          <div className="glass-panel p-4 rounded-3xl border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="glass-ios p-4 sm:p-5 rounded-[28px] border border-white/12 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-ambient-sm">
             <div>
-              <p className="text-sm font-bold text-white font-display">Modo Supermercado Táctil</p>
+              <p className="text-sm font-bold text-white font-display tracking-tight">Modo Supermercado Táctil</p>
               <p className="text-xs text-slate-400">Toca cualquier producto para tacharlo al colocarlo en el carrito</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={handleSyncShopping}
-                className="flex-1 sm:flex-initial min-h-touch px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 touch-press"
+                className="flex-1 sm:flex-initial min-h-touch px-4 py-2.5 rounded-2xl bg-white/[0.12] hover:bg-white/[0.18] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/15 shadow-inner-light touch-press"
               >
-                <RefreshCw className="w-4 h-4" />
-                <span>Auto-Sincronizar con Despensa</span>
+                <RefreshCw className="w-4 h-4 text-emerald-300" />
+                <span>Auto-Sincronizar Despensa</span>
               </button>
 
               <button
                 onClick={() => setNewShoppingModal(true)}
-                className="flex-1 sm:flex-initial min-h-touch px-4 py-2.5 rounded-2xl bg-surface-hover hover:bg-surface-active border border-white/15 text-slate-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 touch-press"
+                className="flex-1 sm:flex-initial min-h-touch px-4 py-2.5 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/30 text-emerald-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 touch-press"
               >
                 <Plus className="w-4 h-4" />
                 <span>Añadir Producto</span>
@@ -570,7 +572,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
               {shoppingItems.some(s => s.checked) && (
                 <button
                   onClick={handleClearCompleted}
-                  className="min-h-touch px-3 py-2.5 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border border-rose-500/30 touch-press"
+                  className="min-h-touch px-3.5 py-2.5 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border border-rose-500/30 touch-press"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Limpiar Comprados</span>
@@ -586,33 +588,33 @@ export default function MealsView({ api, onRefreshDashboard }) {
                 key={item.id}
                 layout
                 onClick={() => handleToggleShopping(item)}
-                className={`min-h-touch p-4 rounded-3xl border flex items-center justify-between gap-4 cursor-pointer transition-all touch-press ${
+                className={`min-h-touch p-4 sm:p-4.5 rounded-[24px] border flex items-center justify-between gap-4 cursor-pointer transition-all touch-press ${
                   item.checked
-                    ? 'bg-slate-900/40 border-white/5 opacity-50'
-                    : 'glass-panel border-white/10 hover:border-emerald-500/30'
+                    ? 'bg-black/30 border-white/5 opacity-55'
+                    : 'glass-ios border-white/10 hover:border-emerald-400/30'
                 }`}
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  {/* BIG TOUCH CHECKBOX */}
+                  {/* CIRCULAR iOS CHECKBOX */}
                   <div
-                    className={`w-8 h-8 rounded-2xl flex items-center justify-center border-2 transition-all flex-shrink-0 ${
+                    className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all flex-shrink-0 ${
                       item.checked
-                        ? 'bg-emerald-500 border-emerald-400 text-white'
-                        : 'border-slate-500 bg-black/20'
+                        ? 'bg-accent-green border-accent-green text-white shadow-glow-green'
+                        : 'border-white/20 bg-white/[0.04]'
                     }`}
                   >
-                    {item.checked && <Check className="w-5 h-5 stroke-[3]" />}
+                    {item.checked && <Check className="w-4 h-4 stroke-[3]" />}
                   </div>
 
                   <div className="min-w-0">
-                    <p className={`text-base font-bold truncate ${item.checked ? 'line-through text-slate-400' : 'text-white'}`}>
+                    <p className={`text-sm sm:text-base font-bold truncate ${item.checked ? 'line-through text-slate-400' : 'text-white'}`}>
                       {item.name}
                     </p>
                     <div className="flex items-center gap-2 text-xs text-slate-400">
                       <span className="font-semibold text-emerald-400 font-mono">{item.quantity}</span>
                       <span>• {item.category}</span>
                       {item.fromMealPlan && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
                           Auto-Sincronizado
                         </span>
                       )}
@@ -626,7 +628,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
                     e.stopPropagation();
                     handleDeleteShoppingItem(item.id);
                   }}
-                  className="min-h-touch min-w-[44px] p-2 text-slate-500 hover:text-rose-400 rounded-xl hover:bg-white/5 flex items-center justify-center touch-press"
+                  className="w-10 h-10 p-2 text-slate-500 hover:text-rose-400 rounded-xl hover:bg-white/5 flex items-center justify-center touch-press flex-shrink-0"
                   aria-label="Eliminar de lista de compras"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -635,10 +637,10 @@ export default function MealsView({ api, onRefreshDashboard }) {
             ))}
 
             {shoppingItems.length === 0 && (
-              <div className="glass-panel p-12 text-center rounded-3xl border border-white/10 space-y-3">
+              <div className="glass-ios p-12 text-center rounded-[32px] border border-white/10 space-y-3 shadow-ambient-sm">
                 <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
-                <h3 className="text-xl font-bold text-white font-display">¡Lista de la compra vacía!</h3>
-                <p className="text-sm text-slate-400 max-w-md mx-auto">
+                <h3 className="text-xl font-bold text-white font-display tracking-tight">¡Lista de la compra al día!</h3>
+                <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
                   Pulsa en "Auto-Sincronizar" para comprobar las recetas planificadas y el stock de tu despensa.
                 </p>
               </div>
@@ -663,7 +665,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
               type="text"
               value={editDayModal?.breakfast || ''}
               onChange={(e) => setEditDayModal({ ...editDayModal, breakfast: e.target.value })}
-              className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+              className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               placeholder="Ej: Tostadas con aguacate y café"
             />
           </div>
@@ -676,7 +678,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
               type="text"
               value={editDayModal?.lunch || ''}
               onChange={(e) => setEditDayModal({ ...editDayModal, lunch: e.target.value })}
-              className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+              className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               placeholder="Ej: Salmón al horno con verduras"
             />
           </div>
@@ -689,7 +691,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
               type="text"
               value={editDayModal?.dinner || ''}
               onChange={(e) => setEditDayModal({ ...editDayModal, dinner: e.target.value })}
-              className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+              className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               placeholder="Ej: Crema de calabacín y tortilla"
             />
           </div>
@@ -697,13 +699,13 @@ export default function MealsView({ api, onRefreshDashboard }) {
           {/* Quick Recipe Chips */}
           <div className="pt-2">
             <p className="text-xs text-slate-400 mb-2">💡 Sugerencias rápidas de recetas del hogar:</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1 no-scrollbar">
               {recipes.map((rec) => (
                 <button
                   type="button"
                   key={rec.id}
                   onClick={() => setEditDayModal({ ...editDayModal, lunch: rec.name })}
-                  className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-emerald-500/20 border border-white/10 text-xs text-slate-200 hover:text-emerald-300 text-left truncate"
+                  className="px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-emerald-500/20 border border-white/10 text-xs text-slate-200 hover:text-emerald-300 text-left truncate transition-colors touch-press"
                 >
                   {rec.name}
                 </button>
@@ -715,13 +717,13 @@ export default function MealsView({ api, onRefreshDashboard }) {
             <button
               type="button"
               onClick={() => setEditDayModal(null)}
-              className="min-h-touch px-4 py-2.5 rounded-2xl bg-white/5 text-slate-300 font-semibold text-sm"
+              className="min-h-touch px-4 py-2.5 rounded-2xl bg-white/[0.08] text-slate-300 hover:text-white font-semibold text-xs sm:text-sm touch-press"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="min-h-touch px-6 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm shadow-lg shadow-emerald-950/60"
+              className="min-h-touch px-6 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs sm:text-sm shadow-glow-green touch-press"
             >
               Guardar Día
             </button>
@@ -745,7 +747,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
               placeholder="Ej: Leche desnatada, Huevos camperos..."
               value={pantryForm.name}
               onChange={(e) => setPantryForm({ ...pantryForm, name: e.target.value })}
-              className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+              className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
             />
           </div>
 
@@ -755,7 +757,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
               <select
                 value={pantryForm.zone}
                 onChange={(e) => setPantryForm({ ...pantryForm, zone: e.target.value })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               >
                 <option value="nevera">❄️ Nevera</option>
                 <option value="congelador">🧊 Congelador</option>
@@ -768,7 +770,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
               <select
                 value={pantryForm.category}
                 onChange={(e) => setPantryForm({ ...pantryForm, category: e.target.value })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               >
                 <option value="Lácteos">Lácteos</option>
                 <option value="Huevos">Huevos</option>
@@ -792,7 +794,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
                 min="0"
                 value={pantryForm.quantity}
                 onChange={(e) => setPantryForm({ ...pantryForm, quantity: Number(e.target.value) })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               />
             </div>
 
@@ -802,8 +804,8 @@ export default function MealsView({ api, onRefreshDashboard }) {
                 type="text"
                 value={pantryForm.unit}
                 onChange={(e) => setPantryForm({ ...pantryForm, unit: e.target.value })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
-                placeholder="ud, kg, litros..."
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
+                placeholder="ud, kg..."
               />
             </div>
 
@@ -814,7 +816,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
                 min="0"
                 value={pantryForm.minQuantity}
                 onChange={(e) => setPantryForm({ ...pantryForm, minQuantity: Number(e.target.value) })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               />
             </div>
           </div>
@@ -823,13 +825,13 @@ export default function MealsView({ api, onRefreshDashboard }) {
             <button
               type="button"
               onClick={() => setNewPantryModal(false)}
-              className="min-h-touch px-4 py-2.5 rounded-2xl bg-white/5 text-slate-300 font-semibold text-sm"
+              className="min-h-touch px-4 py-2.5 rounded-2xl bg-white/[0.08] text-slate-300 hover:text-white font-semibold text-xs sm:text-sm touch-press"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="min-h-touch px-6 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm shadow-lg shadow-emerald-950/60"
+              className="min-h-touch px-6 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs sm:text-sm shadow-glow-green touch-press"
             >
               Añadir Producto
             </button>
@@ -853,7 +855,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
               placeholder="Ej: Tomates cherry, Papel de cocina..."
               value={shoppingForm.name}
               onChange={(e) => setShoppingForm({ ...shoppingForm, name: e.target.value })}
-              className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+              className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
             />
           </div>
 
@@ -864,7 +866,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
                 type="text"
                 value={shoppingForm.quantity}
                 onChange={(e) => setShoppingForm({ ...shoppingForm, quantity: e.target.value })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
                 placeholder="Ej: 2 paquetes, 500g..."
               />
             </div>
@@ -875,7 +877,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
                 type="text"
                 value={shoppingForm.category}
                 onChange={(e) => setShoppingForm({ ...shoppingForm, category: e.target.value })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
                 placeholder="Frescos, Limpieza..."
               />
             </div>
@@ -887,7 +889,7 @@ export default function MealsView({ api, onRefreshDashboard }) {
               type="text"
               value={shoppingForm.notes}
               onChange={(e) => setShoppingForm({ ...shoppingForm, notes: e.target.value })}
-              className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500"
+              className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               placeholder="Marca específica, sin gluten..."
             />
           </div>
@@ -896,13 +898,13 @@ export default function MealsView({ api, onRefreshDashboard }) {
             <button
               type="button"
               onClick={() => setNewShoppingModal(false)}
-              className="min-h-touch px-4 py-2.5 rounded-2xl bg-white/5 text-slate-300 font-semibold text-sm"
+              className="min-h-touch px-4 py-2.5 rounded-2xl bg-white/[0.08] text-slate-300 hover:text-white font-semibold text-xs sm:text-sm touch-press"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="min-h-touch px-6 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm shadow-lg shadow-emerald-950/60"
+              className="min-h-touch px-6 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs sm:text-sm shadow-glow-green touch-press"
             >
               Añadir a Lista
             </button>
@@ -913,3 +915,5 @@ export default function MealsView({ api, onRefreshDashboard }) {
     </div>
   );
 }
+
+export default React.memo(MealsView);

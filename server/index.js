@@ -12,6 +12,7 @@ import shoppingRouter from './routes/shopping.js';
 import financeRouter from './routes/finance.js';
 import domoticsRouter from './routes/domotics.js';
 import documentsRouter from './routes/documents.js';
+import databaseRouter from './routes/database.js';
 
 dotenv.config();
 
@@ -58,6 +59,7 @@ app.use('/api/shopping', shoppingRouter);
 app.use('/api/finance', financeRouter);
 app.use('/api/domotics', domoticsRouter);
 app.use('/api/documents', documentsRouter);
+app.use('/api/database', databaseRouter);
 
 // Serve Frontend in Production
 const clientDistPath = path.join(__dirname, '../client/dist');

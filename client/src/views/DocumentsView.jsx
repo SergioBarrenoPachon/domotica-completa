@@ -2,28 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { 
   FolderCheck, 
   Camera, 
-  Upload, 
   FileText, 
   ShieldAlert, 
   AlertTriangle, 
   CheckCircle2, 
-  Plus, 
   Search, 
   Trash2, 
   Eye, 
-  ExternalLink, 
-  Download, 
-  Calendar, 
-  Clock, 
-  Sparkles,
   Layers,
   FileCheck
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import Modal from '../components/Modal';
 
-export default function DocumentsView({ api, onRefreshDashboard }) {
+function DocumentsView({ api, onRefreshDashboard }) {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('all');
@@ -142,18 +135,18 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
   const warningCount = documents.filter(d => d.status === 'warning').length;
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-24">
       
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-display flex items-center gap-2.5">
-            <span className="p-2 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-display tracking-tight flex items-center gap-2.5">
+            <span className="w-11 h-11 rounded-2xl bg-purple-500/15 text-purple-300 flex items-center justify-center border border-purple-400/25 shadow-inner-light">
               <FolderCheck className="w-6 h-6" />
             </span>
             Documentación & Garantías
           </h2>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
             Digitalización con cámara y control de fechas de caducidad para electrodomésticos y pólizas.
           </p>
         </div>
@@ -161,50 +154,50 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
         {/* Big Touch Upload Button */}
         <button
           onClick={() => setNewDocModal(true)}
-          className="min-h-touch px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-purple-950/60 touch-press"
+          className="min-h-touch px-5 py-3 rounded-2xl bg-white/[0.12] hover:bg-white/[0.18] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/15 shadow-inner-light transition-all touch-press"
         >
-          <Camera className="w-5 h-5" />
+          <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-purple-300" />
           <span>Capturar / Subir Documento</span>
         </button>
       </div>
 
       {/* 1. SEMÁFORO DE ALERTAS DE GARANTÍAS Y VENCIMIENTOS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="glass-panel p-4 rounded-3xl border border-rose-500/30 bg-rose-950/20 flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/40 flex-shrink-0">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
+        <div className="glass-ios p-4 sm:p-5 rounded-[26px] border border-rose-500/30 bg-rose-500/[0.05] flex items-center gap-4 shadow-ambient-sm">
+          <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-300 flex items-center justify-center border border-rose-500/30 flex-shrink-0 shadow-inner-light">
             <ShieldAlert className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-2xl font-black text-rose-300 font-display">{criticalCount}</span>
-            <p className="text-xs text-rose-200/90 font-medium">Urgentes / Vencidos (&lt; 30 días)</p>
+            <span className="text-2xl sm:text-3xl font-black text-rose-200 font-display tracking-tight">{criticalCount}</span>
+            <p className="text-xs text-rose-300/80 font-medium">Urgentes / Vencidos (&lt; 30 días)</p>
           </div>
         </div>
 
-        <div className="glass-panel p-4 rounded-3xl border border-amber-500/30 bg-amber-950/20 flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/40 flex-shrink-0">
+        <div className="glass-ios p-4 sm:p-5 rounded-[26px] border border-amber-500/30 bg-amber-500/[0.05] flex items-center gap-4 shadow-ambient-sm">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-300 flex items-center justify-center border border-amber-500/30 flex-shrink-0 shadow-inner-light">
             <AlertTriangle className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-2xl font-black text-amber-300 font-display">{warningCount}</span>
-            <p className="text-xs text-amber-200/90 font-medium">Próximos a Vencer (&lt; 90 días)</p>
+            <span className="text-2xl sm:text-3xl font-black text-amber-200 font-display tracking-tight">{warningCount}</span>
+            <p className="text-xs text-amber-300/80 font-medium">Próximos a Vencer (&lt; 90 días)</p>
           </div>
         </div>
 
-        <div className="glass-panel p-4 rounded-3xl border border-emerald-500/30 bg-emerald-950/20 flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/40 flex-shrink-0">
+        <div className="glass-ios p-4 sm:p-5 rounded-[26px] border border-emerald-500/30 bg-emerald-500/[0.05] flex items-center gap-4 shadow-ambient-sm">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center border border-emerald-500/30 flex-shrink-0 shadow-inner-light">
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-2xl font-black text-emerald-300 font-display">
+            <span className="text-2xl sm:text-3xl font-black text-emerald-200 font-display tracking-tight">
               {documents.filter(d => d.status === 'ok').length}
             </span>
-            <p className="text-xs text-emerald-200/90 font-medium">En Cobertura Vigente</p>
+            <p className="text-xs text-emerald-300/80 font-medium">En Cobertura Vigente</p>
           </div>
         </div>
       </div>
 
       {/* 2. BARRA DE FILTRO Y BÚSQUEDA */}
-      <div className="glass-panel p-4 rounded-3xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-3">
+      <div className="glass-ios p-4 sm:p-5 rounded-[28px] border border-white/12 flex flex-col md:flex-row items-center justify-between gap-3 shadow-ambient-sm">
         {/* Search Input */}
         <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -213,30 +206,33 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
             placeholder="Buscar por marca, modelo o póliza..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-black/40 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-500"
+            className="w-full pl-10 pr-4 py-2.5 rounded-2xl glass-input text-white placeholder-slate-500 text-xs sm:text-sm"
           />
         </div>
 
         {/* Categories Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full md:w-auto">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`min-h-[44px] px-3.5 py-1.5 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all flex-shrink-0 ${
-                activeCategory === cat.id
-                  ? 'bg-purple-500 text-white shadow-md'
-                  : 'bg-white/5 text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>{cat.label}</span>
-            </button>
-          ))}
+        <div className="p-1 rounded-full bg-white/[0.05] border border-white/10 flex items-center gap-1 overflow-x-auto no-scrollbar w-full md:w-auto">
+          {categories.map((cat) => {
+            const isActive = activeCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`min-h-[38px] px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all flex-shrink-0 touch-press ${
+                  isActive
+                    ? 'bg-white/15 text-white border border-white/20 shadow-inner-light'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>{cat.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* 3. GRID DE DOCUMENTOS Y TARJETAS VISUALES */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
         {filteredDocs.map((doc) => {
           const isCritical = doc.status === 'critical' || doc.status === 'expired';
           const isWarning = doc.status === 'warning';
@@ -245,39 +241,39 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
             <motion.div
               key={doc.id}
               layout
-              className={`glass-panel p-5 rounded-3xl border transition-all flex flex-col justify-between space-y-4 ${
+              className={`glass-ios p-5 sm:p-6 rounded-[28px] sm:rounded-[32px] border transition-all flex flex-col justify-between space-y-4 shadow-ambient-sm ${
                 isCritical
-                  ? 'border-rose-500/40 bg-gradient-to-br from-rose-950/25 to-surface'
+                  ? 'border-rose-500/35 bg-rose-500/[0.05]'
                   : isWarning
-                  ? 'border-amber-500/30 bg-gradient-to-br from-amber-950/20 to-surface'
-                  : 'border-white/10 hover:border-purple-500/30'
+                  ? 'border-amber-500/30 bg-amber-500/[0.05]'
+                  : 'border-white/10 hover:border-purple-400/30'
               }`}
             >
               <div>
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-300 px-2 py-0.5 rounded-md bg-purple-500/20">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-300 px-2.5 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/25">
                     {doc.category}
                   </span>
 
                   {/* BADGE DE SEMÁFORO DE CADUCIDAD */}
                   {isCritical ? (
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-500 text-white shadow-lg flex items-center gap-1">
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-md flex items-center gap-1">
                       <ShieldAlert className="w-3 h-3" />
                       {doc.daysRemaining <= 0 ? 'Vencida' : `Vence en ${doc.daysRemaining}d`}
                     </span>
                   ) : isWarning ? (
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       {doc.daysRemaining} días restantes
                     </span>
                   ) : (
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
                       Vigente
                     </span>
                   )}
                 </div>
 
-                <h4 className="text-lg font-bold text-white font-display mt-2 line-clamp-1">
+                <h4 className="text-lg font-bold text-white font-display mt-2.5 line-clamp-1 tracking-tight">
                   {doc.title}
                 </h4>
                 
@@ -298,12 +294,12 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
               <div className="pt-3 border-t border-white/10 space-y-2">
                 <div className="flex justify-between text-xs text-slate-400">
                   <span>Compra / Emisión:</span>
-                  <span className="font-semibold text-slate-200">{doc.purchaseDate || 'N/A'}</span>
+                  <span className="font-semibold text-slate-200 font-mono">{doc.purchaseDate || 'N/A'}</span>
                 </div>
                 {doc.warrantyExpiryDate && (
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-400">Fin Garantía / Vencimiento:</span>
-                    <span className={`font-bold font-mono ${isCritical ? 'text-rose-400' : isWarning ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    <span className={`font-bold font-mono ${isCritical ? 'text-rose-300' : isWarning ? 'text-amber-300' : 'text-emerald-300'}`}>
                       {doc.warrantyExpiryDate}
                     </span>
                   </div>
@@ -314,15 +310,15 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
               <div className="pt-2 flex items-center justify-between gap-2">
                 <button
                   onClick={() => setViewerModal(doc)}
-                  className="flex-1 min-h-[44px] px-3 rounded-2xl bg-white/10 hover:bg-purple-500/20 text-slate-200 hover:text-purple-300 font-bold text-xs flex items-center justify-center gap-1.5 touch-press"
+                  className="flex-1 min-h-[44px] px-4 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] text-slate-200 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 border border-white/10 touch-press transition-all shadow-inner-light"
                 >
-                  <Eye className="w-4 h-4" />
-                  <span>Ver Póliza / Factura</span>
+                  <Eye className="w-4 h-4 text-purple-300" />
+                  <span>Ver Documento</span>
                 </button>
 
                 <button
                   onClick={() => handleDelete(doc.id)}
-                  className="min-h-[44px] min-w-[44px] rounded-2xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 flex items-center justify-center touch-press"
+                  className="min-h-[44px] min-w-[44px] rounded-2xl text-slate-500 hover:text-rose-400 hover:bg-white/[0.05] flex items-center justify-center touch-press"
                   aria-label="Eliminar documento"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -349,7 +345,7 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
               placeholder="Ej: Garantía Lavavajillas Balay, Seguro Mapfre..."
               value={docForm.title}
               onChange={(e) => setDocForm({ ...docForm, title: e.target.value })}
-              className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+              className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
             />
           </div>
 
@@ -359,7 +355,7 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
               <select
                 value={docForm.category}
                 onChange={(e) => setDocForm({ ...docForm, category: e.target.value })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               >
                 <option value="Electrodomésticos">Electrodomésticos</option>
                 <option value="Seguros">Seguros</option>
@@ -377,7 +373,7 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
                 placeholder="Ej: MediaMarkt, Mapfre, Amazon..."
                 value={docForm.issuer}
                 onChange={(e) => setDocForm({ ...docForm, issuer: e.target.value })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               />
             </div>
           </div>
@@ -390,7 +386,7 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
                 placeholder="Ej: POL-88912, Serie 6..."
                 value={docForm.modelOrPolicy}
                 onChange={(e) => setDocForm({ ...docForm, modelOrPolicy: e.target.value })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               />
             </div>
 
@@ -400,28 +396,28 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
                 type="date"
                 value={docForm.purchaseDate}
                 onChange={(e) => setDocForm({ ...docForm, purchaseDate: e.target.value })}
-                className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+                className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-amber-400 mb-1">
+            <label className="block text-xs font-bold text-amber-300 mb-1">
               📅 Fecha Vencimiento / Fin de Garantía (Para Alertas)
             </label>
             <input
               type="date"
               value={docForm.warrantyExpiryDate}
               onChange={(e) => setDocForm({ ...docForm, warrantyExpiryDate: e.target.value })}
-              className="w-full px-4 py-3 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+              className="w-full px-4 py-3 rounded-2xl glass-input text-white text-sm"
             />
           </div>
 
           {/* CÁMARA / FILE UPLOAD CONTROLLER */}
-          <div className="p-4 rounded-2xl bg-black/30 border border-dashed border-purple-500/40 text-center space-y-2">
+          <div className="p-5 rounded-3xl glass-subtle border border-dashed border-purple-400/40 text-center space-y-2">
             <label className="cursor-pointer block">
-              <Camera className="w-8 h-8 text-purple-400 mx-auto mb-1" />
-              <span className="text-xs font-bold text-purple-300 block">
+              <Camera className="w-8 h-8 text-purple-300 mx-auto mb-1" />
+              <span className="text-xs font-bold text-purple-200 block">
                 {selectedFile ? selectedFile.name : 'Toca para tomar foto con la cámara o seleccionar archivo'}
               </span>
               <span className="text-[10px] text-slate-400 block">Soporta PDF, JPG, PNG (hasta 15MB)</span>
@@ -442,7 +438,7 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
               placeholder="Detalles sobre coberturas, teléfonos de asistencia, etc..."
               value={docForm.notes}
               onChange={(e) => setDocForm({ ...docForm, notes: e.target.value })}
-              className="w-full px-4 py-2.5 rounded-2xl bg-black/40 border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500"
+              className="w-full px-4 py-2.5 rounded-2xl glass-input text-white text-sm"
             />
           </div>
 
@@ -450,14 +446,14 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
             <button
               type="button"
               onClick={() => setNewDocModal(false)}
-              className="min-h-touch px-4 py-2.5 rounded-2xl bg-white/5 text-slate-300 font-semibold text-sm"
+              className="min-h-touch px-4 py-2.5 rounded-2xl bg-white/[0.08] text-slate-300 hover:text-white font-semibold text-xs sm:text-sm touch-press"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isUploading}
-              className="min-h-touch px-6 py-2.5 rounded-2xl bg-purple-500 hover:bg-purple-400 text-white font-bold text-sm shadow-lg shadow-purple-950/60"
+              className="min-h-touch px-6 py-2.5 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs sm:text-sm shadow-glow-brand touch-press"
             >
               {isUploading ? 'Digitalizando...' : 'Guardar Documento'}
             </button>
@@ -474,12 +470,12 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
         maxWidth="max-w-3xl"
       >
         <div className="space-y-4">
-          <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2 text-xs">
+          <div className="p-4 rounded-2xl glass-subtle border border-white/10 space-y-2 text-xs">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div><span className="text-slate-400">Emisor:</span> <p className="font-bold text-white">{viewerModal?.issuer || 'N/A'}</p></div>
               <div><span className="text-slate-400">Modelo/Póliza:</span> <p className="font-bold text-white">{viewerModal?.modelOrPolicy || 'N/A'}</p></div>
-              <div><span className="text-slate-400">Compra:</span> <p className="font-bold text-white">{viewerModal?.purchaseDate || 'N/A'}</p></div>
-              <div><span className="text-slate-400">Vencimiento:</span> <p className="font-bold text-amber-300">{viewerModal?.warrantyExpiryDate || 'N/A'}</p></div>
+              <div><span className="text-slate-400">Compra:</span> <p className="font-bold text-white font-mono">{viewerModal?.purchaseDate || 'N/A'}</p></div>
+              <div><span className="text-slate-400">Vencimiento:</span> <p className="font-bold text-amber-300 font-mono">{viewerModal?.warrantyExpiryDate || 'N/A'}</p></div>
             </div>
             {viewerModal?.notes && (
               <p className="pt-2 border-t border-white/5 text-slate-300 italic">{viewerModal.notes}</p>
@@ -487,7 +483,7 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
           </div>
 
           {/* Visor preview */}
-          <div className="w-full h-80 rounded-2xl bg-slate-950 border border-white/10 overflow-hidden flex items-center justify-center">
+          <div className="w-full h-80 rounded-2xl bg-slate-950/80 border border-white/10 overflow-hidden flex items-center justify-center">
             {viewerModal?.fileUrl ? (
               <iframe
                 src={viewerModal.fileUrl}
@@ -506,7 +502,7 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
           <div className="flex items-center justify-end gap-3 pt-2">
             <button
               onClick={() => setViewerModal(null)}
-              className="min-h-touch px-5 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm"
+              className="min-h-touch px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold text-xs sm:text-sm touch-press"
             >
               Cerrar Visor
             </button>
@@ -517,3 +513,5 @@ export default function DocumentsView({ api, onRefreshDashboard }) {
     </div>
   );
 }
+
+export default React.memo(DocumentsView);

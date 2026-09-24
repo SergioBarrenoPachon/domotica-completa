@@ -2,34 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { 
   Lightbulb, 
   Power, 
-  Sliders, 
   Settings, 
   RefreshCw, 
   Film, 
   Sunrise, 
   Shield, 
   Moon, 
-  Tv, 
-  Wind, 
   Zap, 
   Sparkles, 
-  Check, 
   Layers, 
   Sun, 
-  Radio, 
-  Plug, 
-  Flame, 
   ArrowUp, 
   ArrowDown, 
   Square,
-  Lock,
-  Wifi
+  Wifi,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import Modal from '../components/Modal';
 
-export default function DomoticsView({ api, onRefreshDashboard }) {
+function DomoticsView({ api, onRefreshDashboard }) {
   const [domoticsData, setDomoticsData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeRoomId, setActiveRoomId] = useState('all'); // 'all' | 'salon' | 'cocina' ...
@@ -179,27 +173,27 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
 
   const getSceneIcon = (iconName) => {
     switch (iconName) {
-      case 'Film': return <Film className="w-5 h-5 text-purple-400" />;
-      case 'Sunrise': return <Sunrise className="w-5 h-5 text-amber-400" />;
-      case 'Shield': return <Shield className="w-5 h-5 text-rose-400" />;
-      case 'Moon': return <Moon className="w-5 h-5 text-indigo-400" />;
-      default: return <Sparkles className="w-5 h-5 text-cyan-400" />;
+      case 'Film': return <Film className="w-5 h-5 text-purple-300" />;
+      case 'Sunrise': return <Sunrise className="w-5 h-5 text-amber-300" />;
+      case 'Shield': return <Shield className="w-5 h-5 text-rose-300" />;
+      case 'Moon': return <Moon className="w-5 h-5 text-indigo-300" />;
+      default: return <Sparkles className="w-5 h-5 text-cyan-300" />;
     }
   };
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-24">
       
-      {/* Toast */}
+      {/* Toast Notificación Dinámica iOS */}
       <AnimatePresence>
         {syncToast && (
           <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.9 }}
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 p-4 rounded-2xl bg-cyan-600 text-white font-bold text-sm shadow-2xl border border-cyan-400 flex items-center gap-2 max-w-md"
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3.5 rounded-full glass-ios-elevated text-white font-semibold text-xs sm:text-sm shadow-ambient border border-cyan-400/30 flex items-center gap-2.5 max-w-md"
           >
-            <Wifi className="w-5 h-5 flex-shrink-0 animate-pulse" />
+            <Wifi className="w-4 h-4 text-cyan-300 flex-shrink-0 animate-pulse" />
             <span>{syncToast}</span>
           </motion.div>
         )}
@@ -208,32 +202,32 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
       {/* Header & Connectors Action */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-display flex items-center gap-2.5">
-            <span className="p-2 rounded-2xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-display tracking-tight flex items-center gap-2.5">
+            <span className="w-11 h-11 rounded-2xl bg-cyan-500/15 text-cyan-300 flex items-center justify-center border border-cyan-400/25 shadow-inner-light">
               <Lightbulb className="w-6 h-6" />
             </span>
             Domótica & Hogar Inteligente
           </h2>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
             Control de estancias, iluminación, persianas y puente eWeLink (Sonoff) / Home Assistant.
           </p>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* BOTÓN SINCRONIZAR DISPOSITIVOS */}
+          {/* Botón Sincronizar */}
           <button
             onClick={() => handleSyncDevices('ewelink')}
             disabled={isSyncing}
-            className="min-h-touch px-4 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-cyan-950/60 touch-press"
+            className="min-h-touch px-4 sm:px-5 py-2.5 rounded-2xl bg-white/[0.12] hover:bg-white/[0.18] disabled:opacity-50 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/15 shadow-inner-light transition-all touch-press"
           >
-            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar Dispositivos'}</span>
+            <RefreshCw className={`w-4 h-4 text-cyan-300 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar'}</span>
           </button>
 
-          {/* BOTÓN CONFIGURAR CONECTORES */}
+          {/* Botón Configurar */}
           <button
             onClick={() => setConfigModal(true)}
-            className="min-h-touch min-w-touch p-3 rounded-2xl bg-surface border border-white/15 hover:border-cyan-500/40 text-slate-300 hover:text-white flex items-center justify-center touch-press"
+            className="min-h-touch min-w-touch p-3 rounded-2xl bg-white/[0.08] border border-white/12 hover:bg-white/[0.14] text-slate-300 hover:text-white flex items-center justify-center transition-all touch-press shadow-inner-light"
             title="Configuración de conectores eWeLink y Home Assistant"
             aria-label="Configurar conectores"
           >
@@ -242,33 +236,33 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
         </div>
       </div>
 
-      {/* 1. SCENES QUICK LAUNCH CAROUSEL */}
-      <div className="glass-panel p-4 sm:p-5 rounded-3xl border border-white/10 space-y-3">
+      {/* 1. SCENES QUICK LAUNCH (Estilo Accesos Rápidos iOS 27) */}
+      <div className="glass-ios p-4 sm:p-5 rounded-[28px] sm:rounded-[32px] border border-white/12 space-y-3.5 shadow-ambient-sm">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 font-display flex items-center gap-1.5">
+          <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 font-display flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
-            Escenas & Automatizaciones del Hogar
+            Escenas & Automatizaciones
           </span>
-          <span className="text-xs text-slate-400">1-Toque para ejecutar</span>
+          <span className="text-[11px] text-slate-400">1-Toque para ejecutar</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
           {scenes.map((scene) => (
             <motion.button
               key={scene.id}
-              whileTap={{ scale: 0.94 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => handleActivateScene(scene.id)}
-              className={`p-3.5 rounded-2xl border text-left transition-all flex items-center gap-3 touch-press ${
+              className={`p-3.5 sm:p-4 rounded-2xl sm:rounded-[22px] border text-left transition-all flex items-center gap-3 touch-press ${
                 scene.active
-                  ? 'bg-cyan-500/20 border-cyan-400/60 shadow-glow-cyan text-white'
-                  : 'bg-black/30 border-white/10 hover:border-white/20 text-slate-300'
+                  ? 'bg-cyan-500/20 border-cyan-400/40 text-white shadow-glow-cyan'
+                  : 'bg-white/[0.04] border-white/10 hover:border-white/20 text-slate-200'
               }`}
             >
-              <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-white/[0.08] border border-white/10 flex items-center justify-center flex-shrink-0 shadow-inner-light">
                 {getSceneIcon(scene.icon)}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-bold truncate font-display">{scene.name}</p>
+                <p className="text-sm font-bold truncate font-display tracking-tight">{scene.name}</p>
                 <p className="text-[11px] text-slate-400 truncate">{scene.description}</p>
               </div>
             </motion.button>
@@ -276,37 +270,38 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
         </div>
       </div>
 
-      {/* 2. ROOMS FILTER TABS */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+      {/* 2. ROOMS FILTER (Segment Controller Integrado) */}
+      <div className="p-1.5 rounded-full bg-white/[0.05] border border-white/10 flex items-center gap-1.5 overflow-x-auto no-scrollbar shadow-inner-light">
         <button
           onClick={() => setActiveRoomId('all')}
-          className={`min-h-[48px] px-5 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all flex-shrink-0 ${
+          className={`min-h-[42px] px-4 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition-all flex-shrink-0 touch-press ${
             activeRoomId === 'all'
-              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-glow-cyan'
-              : 'glass-panel text-slate-400 hover:text-white border border-white/10'
+              ? 'bg-white/15 text-white border border-white/20 shadow-inner-light'
+              : 'text-slate-400 hover:text-white'
           }`}
         >
-          <Layers className="w-4 h-4" />
-          <span>Todas las Estancias ({devices.length})</span>
+          <Layers className="w-3.5 h-3.5" />
+          <span>Todas ({devices.length})</span>
         </button>
 
         {rooms.map((room) => {
           const roomDevices = devices.filter(d => d.roomId === room.id);
           const roomOnCount = roomDevices.filter(d => d.state).length;
+          const isActive = activeRoomId === room.id;
 
           return (
             <button
               key={room.id}
               onClick={() => setActiveRoomId(room.id)}
-              className={`min-h-[48px] px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all flex-shrink-0 ${
-                activeRoomId === room.id
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-glow-cyan'
-                  : 'glass-panel text-slate-400 hover:text-white border border-white/10'
+              className={`min-h-[42px] px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition-all flex-shrink-0 touch-press ${
+                isActive
+                  ? 'bg-white/15 text-white border border-white/20 shadow-inner-light'
+                  : 'text-slate-400 hover:text-white'
               }`}
             >
               <span>{room.name}</span>
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                roomOnCount > 0 ? 'bg-cyan-400 text-slate-950' : 'bg-white/10 text-slate-400'
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                roomOnCount > 0 ? 'bg-cyan-400/20 text-cyan-300 border border-cyan-400/30' : 'bg-white/10 text-slate-400'
               }`}>
                 {roomOnCount}/{roomDevices.length}
               </span>
@@ -315,8 +310,8 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
         })}
       </div>
 
-      {/* 3. GRID DE DISPOSITIVOS CON CONTROLES TÁCTILES Y SLIDERS GRUESOS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* 3. GRID DE DISPOSITIVOS CON TOGGLE SWITCH NATIVO DE APPLE */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
         {filteredDevices.map((device) => {
           const isOn = device.state === true;
 
@@ -324,99 +319,153 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
             <motion.div
               key={device.id}
               layout
-              className={`glass-panel p-5 rounded-3xl border transition-all flex flex-col justify-between space-y-4 ${
+              className={`glass-ios p-5 sm:p-6 rounded-[28px] sm:rounded-[32px] border transition-all flex flex-col justify-between space-y-4 shadow-ambient-sm relative overflow-hidden ${
                 isOn
-                  ? 'border-cyan-500/40 bg-gradient-to-br from-cyan-950/30 to-surface shadow-glow-cyan'
-                  : 'border-white/10 bg-surface/80'
+                  ? 'border-cyan-400/35 bg-gradient-to-br from-cyan-500/[0.08] to-transparent'
+                  : 'border-white/10 bg-white/[0.03]'
               }`}
             >
+              {/* Glow sutil en esquina cuando el dispositivo está encendido */}
+              {isOn && (
+                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
+              )}
+
               {/* Device Header */}
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start justify-between gap-3 relative z-10">
                 <div className="min-w-0">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                     {device.connector === 'ewelink' ? '⚡ Sonoff / eWeLink' : '🏠 Home Assistant'}
-                    {device.powerWatts > 0 && isOn && <span>• {device.powerWatts} W</span>}
+                    {device.powerWatts > 0 && isOn && <span className="text-cyan-300">• {device.powerWatts} W</span>}
                   </span>
-                  <h4 className="text-lg font-bold text-white truncate mt-0.5 font-display">
+                  <h4 className="text-lg font-bold text-white truncate mt-0.5 font-display tracking-tight">
                     {device.name}
                   </h4>
                   <p className="text-xs text-slate-400 truncate">{device.model || 'Dispositivo Inteligente'}</p>
                 </div>
 
-                {/* BIG TOGGLE SWITCH */}
+                {/* NATIVE iOS TOGGLE SWITCH (Interruptor de palanca nativo Apple) */}
                 <button
+                  type="button"
                   onClick={() => handleToggleDevice(device.id)}
-                  className={`min-h-[52px] min-w-[52px] rounded-2xl flex items-center justify-center border transition-all touch-press ${
+                  className={`w-14 h-8 rounded-full transition-colors duration-300 p-1 flex items-center touch-press flex-shrink-0 border ${
                     isOn
-                      ? 'bg-cyan-500 border-cyan-300 text-slate-950 shadow-glow-cyan'
-                      : 'bg-slate-800/80 border-white/10 text-slate-400 hover:text-white'
+                      ? 'bg-accent-green border-emerald-400/50 shadow-glow-green justify-end'
+                      : 'bg-white/10 border-white/15 justify-start'
                   }`}
                   aria-label={isOn ? 'Apagar dispositivo' : 'Encender dispositivo'}
                 >
-                  <Power className="w-6 h-6 stroke-[2.5]" />
+                  <motion.div
+                    layout
+                    transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+                    className="w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center"
+                  >
+                    <Power className={`w-3.5 h-3.5 ${isOn ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  </motion.div>
                 </button>
               </div>
 
-              {/* SPECIAL CONTROLLER: DIMMER SLIDER FOR LIGHTS */}
+              {/* SPECIAL CONTROLLER: REGULADOR DE BRILLO (Control Center Slider) */}
               {device.type === 'light' && (
-                <div className="space-y-2 pt-2 border-t border-white/10">
+                <div className="space-y-2 pt-2.5 border-t border-white/10 relative z-10">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400 flex items-center gap-1">
+                    <span className="text-slate-400 flex items-center gap-1.5">
                       <Sun className="w-3.5 h-3.5 text-amber-400" />
-                      Brillo / Intensidad:
+                      Intensidad de Brillo:
                     </span>
                     <span className="font-bold text-white font-mono">{device.brightness || 0}%</span>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={device.brightness || 0}
-                    onChange={(e) => handleUpdateDeviceProp(device.id, 'brightness', Number(e.target.value))}
-                    disabled={!isOn}
-                    className={`w-full ${!isOn ? 'opacity-40 pointer-events-none' : ''}`}
-                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateDeviceProp(device.id, 'brightness', Math.max(0, (device.brightness || 0) - 10))}
+                      disabled={!isOn}
+                      className="w-10 h-10 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold flex items-center justify-center disabled:opacity-30 border border-white/10 touch-press flex-shrink-0 shadow-inner-light"
+                      title="-10% brillo"
+                      aria-label="Reducir brillo 10%"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={device.brightness || 0}
+                      onChange={(e) => handleUpdateDeviceProp(device.id, 'brightness', Number(e.target.value))}
+                      disabled={!isOn}
+                      className={`flex-1 ${!isOn ? 'opacity-30 pointer-events-none' : ''}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateDeviceProp(device.id, 'brightness', Math.min(100, (device.brightness || 0) + 10))}
+                      disabled={!isOn}
+                      className="w-10 h-10 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold flex items-center justify-center disabled:opacity-30 border border-white/10 touch-press flex-shrink-0 shadow-inner-light"
+                      title="+10% brillo"
+                      aria-label="Aumentar brillo 10%"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )}
 
               {/* SPECIAL CONTROLLER: PERSIANAS / MOTORIZED BLINDS */}
               {device.type === 'blind' && (
-                <div className="space-y-3 pt-2 border-t border-white/10">
+                <div className="space-y-3 pt-2.5 border-t border-white/10 relative z-10">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400">Apertura Persiana:</span>
                     <span className="font-bold text-white font-mono">{device.position || 0}%</span>
                   </div>
 
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={device.position || 0}
-                    onChange={(e) => handleUpdateDeviceProp(device.id, 'position', Number(e.target.value))}
-                    className="w-full"
-                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateDeviceProp(device.id, 'position', Math.max(0, (device.position || 0) - 10))}
+                      className="w-10 h-10 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold flex items-center justify-center border border-white/10 touch-press flex-shrink-0 shadow-inner-light"
+                      title="-10% apertura"
+                      aria-label="Bajar persiana 10%"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={device.position || 0}
+                      onChange={(e) => handleUpdateDeviceProp(device.id, 'position', Number(e.target.value))}
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateDeviceProp(device.id, 'position', Math.min(100, (device.position || 0) + 10))}
+                      className="w-10 h-10 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold flex items-center justify-center border border-white/10 touch-press flex-shrink-0 shadow-inner-light"
+                      title="+10% apertura"
+                      aria-label="Subir persiana 10%"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
 
-                  {/* Botones de acción rápida: Subir, Parar, Bajar */}
-                  <div className="grid grid-cols-3 gap-2">
+                  {/* Mandos Segmentados Rápidos: Subir / Parar / Bajar */}
+                  <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10">
                     <button
                       onClick={() => handleUpdateDeviceProp(device.id, 'position', 100)}
-                      className="min-h-[44px] py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-xs font-bold text-slate-200 flex items-center justify-center gap-1 touch-press"
+                      className="py-2 rounded-xl hover:bg-white/10 text-xs font-bold text-slate-200 flex items-center justify-center gap-1 touch-press transition-all"
                     >
-                      <ArrowUp className="w-4 h-4" />
+                      <ArrowUp className="w-3.5 h-3.5" />
                       <span>Subir</span>
                     </button>
                     <button
                       onClick={() => handleUpdateDeviceProp(device.id, 'position', device.position)}
-                      className="min-h-[44px] py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-xs font-bold text-amber-400 flex items-center justify-center gap-1 touch-press"
+                      className="py-2 rounded-xl hover:bg-white/10 text-xs font-bold text-amber-300 flex items-center justify-center gap-1 touch-press transition-all"
                     >
-                      <Square className="w-3.5 h-3.5" />
+                      <Square className="w-3 h-3" />
                       <span>Parar</span>
                     </button>
                     <button
                       onClick={() => handleUpdateDeviceProp(device.id, 'position', 0)}
-                      className="min-h-[44px] py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-xs font-bold text-slate-200 flex items-center justify-center gap-1 touch-press"
+                      className="py-2 rounded-xl hover:bg-white/10 text-xs font-bold text-slate-200 flex items-center justify-center gap-1 touch-press transition-all"
                     >
-                      <ArrowDown className="w-4 h-4" />
+                      <ArrowDown className="w-3.5 h-3.5" />
                       <span>Bajar</span>
                     </button>
                   </div>
@@ -425,9 +474,9 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
 
               {/* SPECIAL CONTROLLER: CLIMATIZACIÓN */}
               {device.type === 'climate' && (
-                <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+                <div className="pt-2.5 border-t border-white/10 flex items-center justify-between relative z-10">
                   <div>
-                    <span className="text-[11px] text-slate-400">Temp. Actual</span>
+                    <span className="text-[11px] text-slate-400 font-medium">Temp. Actual</span>
                     <p className="text-xl font-bold text-white font-mono">{device.currentTemp || 24}°C</p>
                   </div>
 
@@ -435,19 +484,19 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
                     <button
                       onClick={() => handleUpdateDeviceProp(device.id, 'targetTemp', Math.max(16, (device.targetTemp || 22) - 1))}
                       disabled={!isOn}
-                      className="w-10 h-10 rounded-xl bg-white/10 text-white font-bold text-lg disabled:opacity-40 flex items-center justify-center touch-press"
+                      className="w-10 h-10 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-base disabled:opacity-30 flex items-center justify-center border border-white/10 touch-press shadow-inner-light"
                     >
-                      -
+                      <Minus className="w-4 h-4" />
                     </button>
-                    <span className="text-lg font-black text-cyan-300 font-mono px-1">
+                    <span className="text-lg font-black text-cyan-300 font-mono px-1 min-w-[54px] text-center">
                       {device.targetTemp || 22}°C
                     </span>
                     <button
                       onClick={() => handleUpdateDeviceProp(device.id, 'targetTemp', Math.min(30, (device.targetTemp || 22) + 1))}
                       disabled={!isOn}
-                      className="w-10 h-10 rounded-xl bg-white/10 text-white font-bold text-lg disabled:opacity-40 flex items-center justify-center touch-press"
+                      className="w-10 h-10 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] text-white font-bold text-base disabled:opacity-30 flex items-center justify-center border border-white/10 touch-press shadow-inner-light"
                     >
-                      +
+                      <Plus className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -464,16 +513,16 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
         title="Conectores Domóticos & API Keys"
         subtitle="Configura eWeLink (Sonoff) y puentes Home Assistant / Webhooks"
       >
-        <form onSubmit={handleSaveConnectors} className="space-y-6">
+        <form onSubmit={handleSaveConnectors} className="space-y-5">
           
           {/* SECCIÓN EWELINK SONOFF */}
-          <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-500/30 space-y-3">
+          <div className="p-4 sm:p-5 rounded-3xl glass-subtle border border-cyan-400/25 space-y-3.5">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-bold text-cyan-300 font-display flex items-center gap-2">
                 <Wifi className="w-4 h-4" />
                 eWeLink (Sonoff Cloud API)
               </h4>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">
+              <span className="text-[10.5px] px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-400/20 font-medium">
                 {connectors.ewelink?.mode === 'live' ? 'En Vivo' : 'Modo Simulado Activo'}
               </span>
             </div>
@@ -489,7 +538,7 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
                     ewelink: { ...connectorForm.ewelink, appId: e.target.value }
                   })}
                   placeholder="ewelink_app_id"
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs"
+                  className="w-full px-3.5 py-2.5 rounded-2xl glass-input text-white text-xs"
                 />
               </div>
 
@@ -503,7 +552,7 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
                     ewelink: { ...connectorForm.ewelink, appSecret: e.target.value }
                   })}
                   placeholder="••••••••••••"
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs"
+                  className="w-full px-3.5 py-2.5 rounded-2xl glass-input text-white text-xs"
                 />
               </div>
             </div>
@@ -519,7 +568,7 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
                     ewelink: { ...connectorForm.ewelink, email: e.target.value }
                   })}
                   placeholder="cuenta@ejemplo.com"
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs"
+                  className="w-full px-3.5 py-2.5 rounded-2xl glass-input text-white text-xs"
                 />
               </div>
 
@@ -531,7 +580,7 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
                     ...connectorForm,
                     ewelink: { ...connectorForm.ewelink, region: e.target.value }
                   })}
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs"
+                  className="w-full px-3.5 py-2.5 rounded-2xl glass-input text-white text-xs"
                 >
                   <option value="eu">Europa (EU)</option>
                   <option value="us">América (US)</option>
@@ -542,7 +591,7 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
           </div>
 
           {/* SECCIÓN HOME ASSISTANT */}
-          <div className="p-4 rounded-2xl bg-indigo-950/30 border border-indigo-500/30 space-y-3">
+          <div className="p-4 sm:p-5 rounded-3xl glass-subtle border border-indigo-400/25 space-y-3.5">
             <h4 className="text-sm font-bold text-indigo-300 font-display flex items-center gap-2">
               <Layers className="w-4 h-4" />
               Home Assistant / Webhook Puente
@@ -558,7 +607,7 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
                   homeAssistant: { ...connectorForm.homeAssistant, baseUrl: e.target.value }
                 })}
                 placeholder="http://homeassistant.local:8123"
-                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs"
+                className="w-full px-3.5 py-2.5 rounded-2xl glass-input text-white text-xs"
               />
             </div>
 
@@ -572,22 +621,22 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
                   homeAssistant: { ...connectorForm.homeAssistant, webhookUrl: e.target.value }
                 })}
                 placeholder="https://hook.eu.home-assistant.io/..."
-                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs"
+                className="w-full px-3.5 py-2.5 rounded-2xl glass-input text-white text-xs"
               />
             </div>
           </div>
 
-          <div className="pt-4 flex items-center justify-end gap-3">
+          <div className="pt-3 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={() => setConfigModal(false)}
-              className="min-h-touch px-4 py-2.5 rounded-2xl bg-white/5 text-slate-300 font-semibold text-sm"
+              className="min-h-touch px-4 py-2.5 rounded-2xl bg-white/[0.08] text-slate-300 hover:text-white font-semibold text-xs sm:text-sm touch-press"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="min-h-touch px-6 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-sm shadow-lg shadow-cyan-950/60"
+              className="min-h-touch px-6 py-2.5 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs sm:text-sm shadow-glow-brand touch-press"
             >
               Guardar Conectores
             </button>
@@ -598,3 +647,5 @@ export default function DomoticsView({ api, onRefreshDashboard }) {
     </div>
   );
 }
+
+export default React.memo(DomoticsView);

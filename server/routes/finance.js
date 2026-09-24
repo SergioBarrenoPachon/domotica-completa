@@ -14,6 +14,100 @@ router.get('/month/:month', (req, res) => {
   }
 });
 
+// GET /api/finance/year/:year - Obtener proyección y balance consolidado de los 12 meses del año
+router.get('/year/:year', (req, res) => {
+  try {
+    const year = parseInt(req.params.year, 10) || new Date().getFullYear();
+    const months = [];
+    let annualIncome = 0;
+    let annualExpenses = 0;
+    
+    for (let m = 1; m <= 12; m++) {
+      const monthStr = `${year}-${String(m).padStart(2, '0')}`;
+      const summary = db.calculateMonthFinance(monthStr);
+      annualIncome += summary.totalIncome || 0;
+      annualExpenses += summary.totalExpenses || 0;
+
+      // Extract highlights for this month (e.g. extra pays, annual bills, or notable transactions)
+      const highlights = (summary.items || [])
+        .filter(item => item.frequency === 'anual' || item.title?.toLowerCase().includes('extra') || item.title?.toLowerCase().includes('bonus') || item.frequency === 'semestral' || item.amount >= 500)
+        .map(i => ({ 
+          id: i.id, 
+          title: i.title, 
+          amount: i.amount, 
+          type: i.type, 
+          dayOfMonth: i.dayOfMonth, 
+          category: i.category,
+          paid: i.paid 
+        }));
+
+      months.push({
+        month: monthStr,
+        monthNumber: m,
+        year,
+        totalIncome: summary.totalIncome || 0,
+        totalExpenses: summary.totalExpenses || 0,
+        projectedBalance: summary.projectedBalance || 0,
+        paidIncome: summary.paidIncome || 0,
+        paidExpenses: summary.paidExpenses || 0,
+        currentActualBalance: summary.currentActualBalance || 0,
+        pendingExpensesCount: summary.pendingExpensesCount || 0,
+        itemsCount: (summary.items || []).length,
+        items: summary.items || [],
+        highlights
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        year,
+        annualIncome,
+        annualExpenses,
+        annualNetSavings: annualIncome - annualExpenses,
+        months
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// --- CATEGORIES & GROUPINGS ENDPOINTS ---
+// GET /api/finance/categories - Obtener lista de categorías y agrupaciones
+router.get('/categories', (req, res) => {
+  try {
+    const list = db.getFinanceCategories();
+    res.json({ success: true, data: list });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/finance/categories - Crear nueva categoría o agrupación personalizada
+router.post('/categories', (req, res) => {
+  try {
+    const { name, group, color, icon } = req.body;
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'El nombre de la categoría es requerido' });
+    }
+    const newCat = db.addFinanceCategory({ name, group, color, icon });
+    res.status(201).json({ success: true, data: newCat });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/finance/categories/:id - Eliminar categoría personalizada
+router.delete('/categories/:id', (req, res) => {
+  try {
+    const result = db.deleteFinanceCategory(req.params.id);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/finance/transactions - Obtener reglas maestras de transacciones
 router.get('/transactions', (req, res) => {
   try {
@@ -27,12 +121,61 @@ router.get('/transactions', (req, res) => {
 // POST /api/finance/transactions - Crear nueva transacción / ingreso / gasto recurrente o puntual
 router.post('/transactions', (req, res) => {
   try {
-    const { title, amount, type, category, frequency, dayOfMonth, monthOfYear, startDate, active } = req.body;
+    const { 
+      title, 
+      amount, 
+      type, 
+      category, 
+      frequency, 
+      dayOfMonth, 
+      monthOfYear, 
+      startDate, 
+      endDate, 
+      active, 
+      initialPaid, 
+      notes, 
+      yearlyIncreasePct, 
+      isIndefinite,
+      activeMonths,
+      rateSteps,
+      loanId
+    } = req.body;
     if (!title || amount === undefined) {
       return res.status(400).json({ success: false, error: 'Título y monto son requeridos' });
     }
-    const newTx = db.addFinanceTransaction({ title, amount, type, category, frequency, dayOfMonth, monthOfYear, startDate, active });
+    const newTx = db.addFinanceTransaction({ 
+      title, 
+      amount, 
+      type, 
+      category, 
+      frequency, 
+      dayOfMonth, 
+      monthOfYear, 
+      startDate, 
+      endDate, 
+      active, 
+      initialPaid, 
+      notes, 
+      yearlyIncreasePct, 
+      isIndefinite,
+      activeMonths,
+      rateSteps,
+      loanId
+    });
     res.status(201).json({ success: true, data: newTx });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH /api/finance/transactions/:id/toggle - Alternar estado activo / inactivo
+router.patch('/transactions/:id/toggle', (req, res) => {
+  try {
+    const result = db.toggleTransactionActive(req.params.id);
+    if (!result) {
+      return res.status(404).json({ success: false, error: 'Transacción no encontrada' });
+    }
+    res.json({ success: true, data: result, message: `Transacción ${result.active ? 'activada' : 'desactivada'}` });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -51,14 +194,28 @@ router.put('/transactions/:id', (req, res) => {
   }
 });
 
+// PUT /api/finance/transactions/:id/move - Mover transacción a otro día del mes
+router.put('/transactions/:id/move', (req, res) => {
+  try {
+    const { targetDay, month } = req.body;
+    const result = db.moveTransactionDay(req.params.id, targetDay, month || new Date().toISOString().slice(0, 7));
+    if (!result.success) {
+      return res.status(404).json(result);
+    }
+    res.json({ success: true, data: result, message: `Transacción movida al día ${result.targetDay}` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /api/finance/override - Crear o actualizar excepción puntual de un mes ("Modificar solo este mes")
 router.post('/override', (req, res) => {
   try {
-    const { transactionId, month, amount, title, category, notes } = req.body;
-    if (!transactionId || !month || amount === undefined) {
-      return res.status(400).json({ success: false, error: 'transactionId, month y amount son requeridos' });
+    const { transactionId, month, amount, title, category, notes, dayOfMonth } = req.body;
+    if (!transactionId || !month || (amount === undefined && dayOfMonth === undefined)) {
+      return res.status(400).json({ success: false, error: 'transactionId, month y al menos amount o dayOfMonth son requeridos' });
     }
-    const override = db.createMonthOverride(transactionId, month, { amount, title, category, notes });
+    const override = db.createMonthOverride(transactionId, month, { amount, title, category, notes, dayOfMonth });
     res.status(201).json({ success: true, data: override, message: 'Excepción creada exclusivamente para el mes seleccionado' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -89,14 +246,30 @@ router.post('/payment-status', (req, res) => {
   }
 });
 
-// DELETE /api/finance/transactions/:id - Eliminar transacción recurrente por completo
-router.delete('/transactions/:id', (req, res) => {
+// POST /api/finance/transactions/:id/exclude-month - Excluir/Eliminar concepto solo para un mes concreto
+router.post('/transactions/:id/exclude-month', (req, res) => {
   try {
-    const result = db.deleteFinanceTransaction(req.params.id);
-    res.json({ success: true, data: result });
+    const { month } = req.body;
+    if (!month) {
+      return res.status(400).json({ success: false, error: 'El mes es requerido (YYYY-MM)' });
+    }
+    const result = db.excludeTransactionFromMonth(req.params.id, month);
+    res.json({ success: true, data: result, message: `Concepto eliminado exclusivamente para ${month}` });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// DELETE /api/finance/transactions/:id - Eliminar transacción recurrente por completo o excepción
+router.delete('/transactions/:id', (req, res) => {
+  try {
+    const result = db.deleteFinanceTransaction(req.params.id);
+    res.json({ success: true, data: result, message: 'Concepto eliminado correctamente' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/finance/long-term - Motor de proyección patrimonial y presupuestaria (1 a 30 años)
 router.get('/long-term', (req, res) => {
   try {

@@ -6,42 +6,90 @@
   :root {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   h1, h2, h3, h4, h5, h6, .font-display {
     font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
+  html, body {
+    touch-action: manipulation;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
   body {
     padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
 }
 
-/* Glassmorphism Styles */
-.glass-panel {
-  background: rgba(19, 27, 42, 0.72);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+/* Touch Targets for Tablet & Mobile */
+.min-h-touch {
+  min-height: 48px;
+}
+.min-w-touch {
+  min-width: 48px;
+}
+
+/* Prevent auto-zoom in iOS Safari on mobile/tablet forms */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Allow text selection in inputs and notes */
+input, textarea, [contenteditable="true"], .selectable-text {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* Glassmorphism Styles - iOS 27 High-FPS Ultra-Fluid Translucency */
+.glass-panel,
+.glass-ios {
+  background: rgba(14, 19, 31, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-elevated,
+.glass-ios-elevated {
+  background: rgba(18, 25, 41, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.65), inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.12);
+}
+
+.glass-pill,
+.glass-ios-dock {
+  background: rgba(10, 14, 24, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.55), inset 0 1px 1px 0 rgba(255, 255, 255, 0.14);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+.glass-subtle {
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.glass-panel-elevated {
-  background: rgba(27, 38, 59, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+.glass-input {
+  background: rgba(8, 12, 20, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
-.glass-pill {
-  background: rgba(15, 23, 42, 0.88);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6);
+.glass-input:focus {
+  background: rgba(10, 14, 24, 0.92);
+  border-color: rgba(10, 132, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.18), inset 0 1px 1px 0 rgba(255, 255, 255, 0.08);
+  outline: none;
 }
 
 /* Custom scrollbars & Hide scrollbar */
@@ -51,23 +99,47 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Touch feedback button helper */
+/* iOS 27 Micro-Interactions & Haptic-Like Elastic Press */
 .touch-press {
-  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.12s ease;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.12s ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .touch-press:active {
-  transform: scale(0.96);
-  opacity: 0.9;
+  transform: scale(0.97);
+  opacity: 0.88;
 }
 
-/* Custom Range Slider for Touch */
+/* iOS 27 Segment Controller Container & Active Pill */
+.ios-segment-track {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 9999px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.ios-segment-pill-active {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.4), inset 0 1px 1px 0 rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Custom Apple Control Center Range Slider (Touch-First) */
 input[type=range] {
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
   cursor: pointer;
+  height: 42px;
+  touch-action: pan-y;
 }
 
 input[type=range]:focus {
@@ -77,27 +149,53 @@ input[type=range]:focus {
 input[type=range]::-webkit-slider-runnable-track {
   height: 12px;
   border-radius: 9999px;
-  background: #1e293b;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
 input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  height: 28px;
-  width: 28px;
+  height: 32px;
+  width: 32px;
   border-radius: 50%;
-  background: #38bdf8;
-  margin-top: -8px;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
-  border: 3px solid #ffffff;
+  background: #ffffff;
+  margin-top: -10px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5), 0 0 12px rgba(255, 255, 255, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.14s ease;
 }
 
-/* Pulse animation for active connected devices */
+input[type=range]::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 20px rgba(10, 132, 255, 0.7);
+}
+
+/* Ambient Pulse for Active Devices */
 @keyframes pulse-ring {
-  0% { transform: scale(0.95); opacity: 0.8; }
-  50% { transform: scale(1.05); opacity: 0.4; }
-  100% { transform: scale(0.95); opacity: 0.8; }
+  0% { transform: scale(0.96); opacity: 0.9; }
+  50% { transform: scale(1.04); opacity: 0.45; }
+  100% { transform: scale(0.96); opacity: 0.9; }
 }
 
 .pulse-active {
-  animation: pulse-ring 2.5s infinite ease-in-out;
+  animation: pulse-ring 3s infinite ease-in-out;
+}
+
+/* Global Dropdown Option & Placeholder Contrast */
+select option {
+  background-color: #0e1526 !important;
+  color: #f8fafc !important;
+}
+
+::placeholder {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* Hide floating bottom navigation dock when any modal is open */
+body.modal-open nav.fixed {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(24px) !important;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
