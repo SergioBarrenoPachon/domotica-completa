@@ -264,6 +264,20 @@ export const api = {
     });
     return handleResponse(res);
   },
+  async addLoanRepayment(id, repaymentData) {
+    const res = await fetch(`${BASE_URL}/finance/loans/${id}/repay`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(repaymentData)
+    });
+    return handleResponse(res);
+  },
+  async deleteLoanRepayment(id, repaymentId) {
+    const res = await fetch(`${BASE_URL}/finance/loans/${id}/repayment/${repaymentId}`, {
+      method: 'DELETE'
+    });
+    return handleResponse(res);
+  },
 
   // SAVINGS GOALS
   async getGoals() {
@@ -384,5 +398,28 @@ export const api = {
   },
   getDatabaseExportUrl() {
     return `${BASE_URL}/database/export`;
+  },
+
+  // APPLE SHORTCUTS & GASTOS PUNTUALES
+  async addPunctualExpense(payload) {
+    const res = await fetch(`${BASE_URL}/finance/shortcuts/gasto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return handleResponse(res);
+  },
+  async getPunctualExpenses(limit = 50) {
+    const res = await fetch(`${BASE_URL}/finance/shortcuts/gastos?limit=${limit}`);
+    return handleResponse(res);
+  },
+  async deletePunctualExpense(id) {
+    const res = await fetch(`${BASE_URL}/finance/shortcuts/gasto/${id}`, {
+      method: 'DELETE'
+    });
+    return handleResponse(res);
+  },
+  getShortcutsWebhookUrl() {
+    return `${window.location.origin}/api/finance/shortcuts/gasto`;
   }
 };

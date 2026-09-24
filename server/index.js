@@ -1,9 +1,11 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
 
 import dashboardRouter from './routes/dashboard.js';
 import mealsRouter from './routes/meals.js';
@@ -13,8 +15,6 @@ import financeRouter from './routes/finance.js';
 import domoticsRouter from './routes/domotics.js';
 import documentsRouter from './routes/documents.js';
 import databaseRouter from './routes/database.js';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,5 +87,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  🏠 Domótica y Gestión Integral del Hogar API`);
   console.log(`  🚀 Servidor activo en http://localhost:${PORT}`);
   console.log(`  📦 Modo: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`  🐘 Base de Datos: Neon PostgreSQL (AWS Frankfurt)`);
+  console.log(`  ⚡ Endpoint Atajos Apple: http://localhost:${PORT}/api/finance/shortcuts/gasto`);
   console.log(`====================================================`);
 });

@@ -1,7 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 import { initialSeedData } from './seedData.js';
+import { pgService } from './postgres.js';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,7 +29,9 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 class Database {
   constructor() {
     this.data = null;
+    this._pgSyncInterval = null;
     this.load();
+    this.initPgAsync();
   }
 
   createBackup(reason = 'auto') {
@@ -124,7 +130,272 @@ class Database {
     }
   }
 
-  getDatabaseStatus() {
+  async initPgAsync() {
+    try {
+      const ready = await pgService.initSchema();
+      if (!ready) {
+        console.log('[Database] Modo Neon PostgreSQL inactivo o no disponible. Usando almacenamiento local.');
+        return;
+      }
+
+      // 1. Cargar estado completo desde Neon si ya existe
+      const pgState = await pgService.loadFullState();
+      if (pgState && typeof pgState === 'object') {
+        console.log('[Database] Estado financiero y del hogar cargado exitosamente desde Neon PostgreSQL.');
+        this.data = pgState;
+        
+        // Garantizar subcolecciones
+        if (!this.data.finance) this.data.finance = {};
+        if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = initialSeedData.finance.transactions || [];
+        if (!Array.isArray(this.data.finance.loans)) this.data.finance.loans = initialSeedData.finance.loans || [];
+        if (!Array.isArray(this.data.finance.goals)) this.data.finance.goals = initialSeedData.finance.goals || [];
+        if (!Array.isArray(this.data.finance.overrides)) this.data.finance.overrides = [];
+        if (!this.data.finance.payments) this.data.finance.payments = {};
+        if (!Array.isArray(this.data.finance.categories) || this.data.finance.categories.length === 0) {
+          this.data.finance.categories = initialSeedData.finance.categories || [];
+        }
+
+        this.saveLocalOnly();
+      } else {
+        console.log('[Database] Inicializando primer volcado de datos en Neon PostgreSQL...');
+        await pgService.saveFullState(this.data);
+        await pgService.syncRelationalData(this.data.finance);
+      }
+
+      // 2. Sincronizar gastos puntuales de la tabla dedicada gastos_puntuales
+      await this.syncPunctualExpensesFromPg();
+
+      // 3. Temporizador de sondeo cada 30s para automatismos externos que escriban directamente en Postgres
+      if (!this._pgSyncInterval) {
+        this._pgSyncInterval = setInterval(() => {
+          this.syncPunctualExpensesFromPg().catch(err => {
+            console.error('[Database BG Sync Error]', err.message);
+          });
+        }, 30000);
+      }
+    } catch (err) {
+      console.error('[Database initPgAsync Error]', err);
+    }
+  }
+
+  async syncPunctualExpensesFromPg() {
+    if (!pgService.isConnected) return;
+    try {
+      const rows = await pgService.getPunctualExpenses(500);
+      if (!Array.isArray(rows) || rows.length === 0) return;
+
+      if (!this.data.finance) this.data.finance = {};
+      if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = [];
+      if (!this.data.finance.payments) this.data.finance.payments = {};
+
+      let changed = false;
+      for (const row of rows) {
+        const existing = this.data.finance.transactions.find(t => t.id === row.id);
+        const dateStr = typeof row.fecha === 'string' ? row.fecha.slice(0, 10) : new Date(row.fecha).toISOString().slice(0, 10);
+        const parts = dateStr.split('-');
+        const day = parseInt(parts[2], 10) || 1;
+        const monthNum = parseInt(parts[1], 10) || 1;
+        const monthKey = `${parts[0]}-${parts[1]}`;
+
+        if (!existing) {
+          const newTx = {
+            id: row.id,
+            title: row.titulo,
+            amount: parseFloat(row.importe) || 0,
+            type: 'gasto',
+            category: row.categoria || 'Gastos Puntuales',
+            frequency: 'puntual',
+            dayOfMonth: day,
+            monthOfYear: monthNum,
+            active: true,
+            startDate: dateStr,
+            endDate: dateStr,
+            isIndefinite: false,
+            notes: row.notas || (row.origen === 'atajos_apple' ? '[Atajo Apple]' : ''),
+            source: row.origen || 'atajos_apple',
+            paymentMethod: row.metodo_pago || 'Tarjeta',
+            createdAt: row.creado_en || new Date().toISOString()
+          };
+          this.data.finance.transactions.push(newTx);
+          changed = true;
+        }
+
+        // Asegurar que figura como pagado en payments
+        if (!this.data.finance.payments[monthKey]) {
+          this.data.finance.payments[monthKey] = {};
+        }
+        if (!this.data.finance.payments[monthKey][row.id]) {
+          this.data.finance.payments[monthKey][row.id] = {
+            paid: true,
+            date: dateStr
+          };
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        this.saveLocalOnly();
+        pgService.saveFullState(this.data).catch(() => {});
+      }
+    } catch (err) {
+      console.error('[Database syncPunctualExpensesFromPg Error]', err.message);
+    }
+  }
+
+  async addPunctualExpenseShortcut(payload = {}) {
+    const {
+      titulo,
+      title,
+      concepto,
+      importe,
+      amount,
+      precio,
+      categoria,
+      category,
+      fecha,
+      date,
+      metodo_pago,
+      metodoPago,
+      paymentMethod,
+      notas,
+      notes,
+      origen,
+      source,
+      pagado,
+      paid
+    } = payload;
+
+    const cleanTitle = (titulo || title || concepto || 'Gasto puntual').trim();
+    
+    // Parseo numérico seguro (maneja comas decimales, símbolos €)
+    let rawAmount = importe !== undefined ? importe : (amount !== undefined ? amount : precio);
+    if (typeof rawAmount === 'string') {
+      rawAmount = rawAmount.replace(/\s+/g, '').replace('€', '').replace(',', '.');
+    }
+    const cleanAmount = parseFloat(rawAmount);
+    if (isNaN(cleanAmount) || cleanAmount <= 0) {
+      throw new Error('El importe debe ser un número válido mayor que 0.');
+    }
+
+    // Fecha en formato YYYY-MM-DD
+    let cleanDate = fecha || date;
+    if (!cleanDate || typeof cleanDate !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(cleanDate)) {
+      cleanDate = new Date().toISOString().slice(0, 10);
+    } else {
+      cleanDate = cleanDate.slice(0, 10);
+    }
+
+    const cleanCategory = (categoria || category || 'Gastos Puntuales').trim();
+    const cleanMethod = (metodo_pago || metodoPago || paymentMethod || 'Apple Pay').trim();
+    const cleanNotes = (notas || notes || '').trim();
+    const cleanOrigin = (origen || source || 'atajos_apple').trim();
+    const isPaid = pagado !== undefined ? Boolean(pagado) : (paid !== undefined ? Boolean(paid) : true);
+
+    const id = `gasto-apple-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const parts = cleanDate.split('-');
+    const day = parseInt(parts[2], 10) || 1;
+    const monthNum = parseInt(parts[1], 10) || 1;
+    const monthKey = `${parts[0]}-${parts[1]}`;
+
+    // 1. Guardar en PostgreSQL en la tabla dedicada gastos_puntuales
+    if (pgService.isConnected) {
+      try {
+        await pgService.insertPunctualExpense({
+          id,
+          titulo: cleanTitle,
+          importe: cleanAmount,
+          categoria: cleanCategory,
+          fecha: cleanDate,
+          metodo_pago: cleanMethod,
+          notas: cleanNotes,
+          origen: cleanOrigin
+        });
+      } catch (err) {
+        console.error('[addPunctualExpenseShortcut PG Error]', err);
+      }
+    }
+
+    // 2. Añadir a transacciones activas de finanzas
+    if (!this.data.finance) this.data.finance = {};
+    if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = [];
+    if (!this.data.finance.payments) this.data.finance.payments = {};
+
+    const newTx = {
+      id,
+      title: cleanTitle,
+      amount: cleanAmount,
+      type: 'gasto',
+      category: cleanCategory,
+      frequency: 'puntual',
+      dayOfMonth: day,
+      monthOfYear: monthNum,
+      active: true,
+      startDate: cleanDate,
+      endDate: cleanDate,
+      isIndefinite: false,
+      notes: cleanNotes ? `[Atajo Apple] ${cleanNotes}` : '[Atajo Apple]',
+      source: cleanOrigin,
+      paymentMethod: cleanMethod,
+      createdAt: new Date().toISOString()
+    };
+
+    this.data.finance.transactions.push(newTx);
+
+    // 3. Registrar como pagado para el mes correspondiente
+    if (isPaid) {
+      if (!this.data.finance.payments[monthKey]) {
+        this.data.finance.payments[monthKey] = {};
+      }
+      this.data.finance.payments[monthKey][id] = {
+        paid: true,
+        date: cleanDate
+      };
+    }
+
+    this.save();
+
+    return {
+      success: true,
+      id,
+      titulo: cleanTitle,
+      importe: cleanAmount,
+      categoria: cleanCategory,
+      fecha: cleanDate,
+      metodo_pago: cleanMethod,
+      pagado: isPaid,
+      message: `Gasto de ${cleanAmount.toFixed(2)}€ ('${cleanTitle}') registrado correctamente en Neon PostgreSQL.`,
+      speechFeedback: `Gasto de ${cleanAmount.toFixed(2)} euros por ${cleanTitle} añadido a Domótica.`
+    };
+  }
+
+  async getPunctualExpensesFromPg(limit = 100) {
+    if (pgService.isConnected) {
+      return await pgService.getPunctualExpenses(limit);
+    }
+    // Fallback local
+    return (this.data?.finance?.transactions || [])
+      .filter(t => t.frequency === 'puntual' || t.source === 'atajos_apple')
+      .map(t => ({
+        id: t.id,
+        titulo: t.title,
+        importe: t.amount,
+        categoria: t.category,
+        fecha: t.startDate,
+        metodo_pago: t.paymentMethod || 'Tarjeta',
+        notas: t.notes,
+        origen: t.source || 'manual',
+        creado_en: t.createdAt
+      }));
+  }
+
+  async deletePunctualExpense(id) {
+    if (pgService.isConnected) {
+      await pgService.deletePunctualExpense(id);
+    }
+    return this.deleteFinanceTransaction(id);
+  }
+
+  async getDatabaseStatus() {
     let stats = null;
     if (fs.existsSync(DB_FILE)) {
       stats = fs.statSync(DB_FILE);
@@ -133,20 +404,33 @@ class Database {
       ? fs.readdirSync(BACKUPS_DIR).filter(f => f.endsWith('.json'))
       : [];
 
+    const pgStatus = await pgService.getStatus();
+
     return {
-      status: 'healthy',
-      storageType: 'Base de Datos Central en Disco (JSON DB Permanente)',
+      status: pgStatus.connected ? 'healthy' : 'local_only',
+      storageType: pgStatus.connected 
+        ? 'Neon Serverless PostgreSQL (Nube) + Réplica Local' 
+        : 'Base de Datos Local en Disco (JSON DB Permanente)',
       dbFile: DB_FILE,
       sizeBytes: stats ? stats.size : 0,
       lastModified: stats ? stats.mtime.toISOString() : null,
       backupsCount: backupFiles.length,
       isMultiDevice: true,
-      description: 'Los datos se guardan de forma permanente en el disco del servidor. No residen en la memoria local del navegador y son accesibles de forma sincronizada desde cualquier tablet, móvil o PC conectado.',
+      description: pgStatus.connected
+        ? 'Conectado activamente a Neon PostgreSQL (AWS Frankfurt). Todas las finanzas, pagos mensuales y gastos puntuales de Atajos de Apple se sincronizan en la nube.'
+        : 'Operando con réplica local. Conexión a Neon PostgreSQL en espera o reintentando.',
+      postgres: pgStatus,
+      appleShortcuts: {
+        endpoint: '/api/finance/shortcuts/gasto',
+        method: 'POST',
+        totalGastosPuntuales: pgStatus.counts ? pgStatus.counts.gastosPuntuales : 0
+      },
       counts: {
         transactions: (this.data?.finance?.transactions || []).length,
         categories: (this.data?.finance?.categories || []).length,
         loans: (this.data?.finance?.loans || []).length,
         goals: (this.data?.finance?.goals || []).length,
+        gastosPuntuales: pgStatus.counts ? pgStatus.counts.gastosPuntuales : 0,
         pantryItems: (this.data?.pantry || []).length,
         shoppingItems: (this.data?.shoppingList || []).length,
         documents: (this.data?.documents || []).length
@@ -154,13 +438,25 @@ class Database {
     };
   }
 
-  save() {
+  saveLocalOnly() {
     try {
       const tempFile = `${DB_FILE}.tmp`;
       fs.writeFileSync(tempFile, JSON.stringify(this.data, null, 2), 'utf-8');
       fs.renameSync(tempFile, DB_FILE);
     } catch (err) {
-      console.error('Error saving database:', err);
+      console.error('Error saving local database:', err);
+    }
+  }
+
+  save() {
+    this.saveLocalOnly();
+    if (pgService.isConnected) {
+      pgService.saveFullState(this.data).catch(err => {
+        console.error('[PostgreSQL save state error]', err.message);
+      });
+      pgService.syncRelationalData(this.data?.finance).catch(err => {
+        console.error('[PostgreSQL sync relational error]', err.message);
+      });
     }
   }
 
@@ -745,6 +1041,11 @@ class Database {
       });
     }
 
+    // Clean up punctual expenses in PostgreSQL if present
+    if (pgService.isConnected) {
+      pgService.deletePunctualExpense(targetTxId).catch(() => {});
+    }
+
     this.save();
     return { success: true, id: targetTxId };
   }
@@ -793,52 +1094,89 @@ class Database {
         return;
       }
 
-      // Check frequency applicability
+      // 1. Determinar si existe un tramo/periodo activo (rateStep) para este mes concreto
+      let effectiveAmount = Number(tx.amount) || 0;
+      let effectiveFrequency = tx.frequency || 'mensual';
+      let effectiveDay = tx.dayOfMonth;
+      let effectiveMonthOfYear = tx.monthOfYear;
+      let activeRateStep = null;
+
+      if (Array.isArray(tx.rateSteps) && tx.rateSteps.length > 0) {
+        const matchingStep = tx.rateSteps.find(step => {
+          const stepStart = step.startDate ? step.startDate.slice(0, 7) : null;
+          const stepEnd = step.endDate ? step.endDate.slice(0, 7) : null;
+          if (stepStart && monthKey < stepStart) return false;
+          if (stepEnd && monthKey > stepEnd) return false;
+          return true;
+        });
+
+        if (matchingStep) {
+          if (matchingStep.amount !== undefined && matchingStep.amount !== null && matchingStep.amount !== '') {
+            effectiveAmount = Number(matchingStep.amount) || 0;
+          }
+          if (matchingStep.frequency) {
+            effectiveFrequency = matchingStep.frequency;
+          }
+          if (matchingStep.monthOfYear !== undefined && matchingStep.monthOfYear !== null) {
+            effectiveMonthOfYear = Number(matchingStep.monthOfYear);
+          }
+          if (matchingStep.dayOfMonth !== undefined && matchingStep.dayOfMonth !== null) {
+            effectiveDay = Number(matchingStep.dayOfMonth);
+          }
+          activeRateStep = matchingStep;
+        }
+      }
+
+      // 2. Comprobar aplicabilidad de la frecuencia efectiva para este mes
       let applies = false;
-      if (tx.frequency === 'mensual') {
+      if (effectiveFrequency === 'mensual') {
         applies = true;
-      } else if (tx.frequency === 'trimestral') {
-        let baseMonth = tx.monthOfYear ? Number(tx.monthOfYear) : null;
+      } else if (effectiveFrequency === 'trimestral') {
+        let baseMonth = effectiveMonthOfYear ? Number(effectiveMonthOfYear) : null;
         if (!baseMonth && tx.startDate) {
           const parts = tx.startDate.split('-');
           if (parts[1]) baseMonth = parseInt(parts[1], 10);
         }
         if (!baseMonth || isNaN(baseMonth)) baseMonth = 1;
         applies = ((currentMonthNumber - baseMonth) % 3 + 3) % 3 === 0;
-      } else if (tx.frequency === 'semestral') {
-        let baseMonth = tx.monthOfYear ? Number(tx.monthOfYear) : null;
+      } else if (effectiveFrequency === 'semestral') {
+        let baseMonth = effectiveMonthOfYear ? Number(effectiveMonthOfYear) : null;
         if (!baseMonth && tx.startDate) {
           const parts = tx.startDate.split('-');
           if (parts[1]) baseMonth = parseInt(parts[1], 10);
         }
         if (!baseMonth || isNaN(baseMonth)) baseMonth = 6;
         applies = ((currentMonthNumber - baseMonth) % 6 + 6) % 6 === 0;
-      } else if (tx.frequency === 'anual') {
-        let annualMonth = tx.monthOfYear ? Number(tx.monthOfYear) : null;
+      } else if (effectiveFrequency === 'anual') {
+        let annualMonth = effectiveMonthOfYear ? Number(effectiveMonthOfYear) : null;
         if (!annualMonth && tx.startDate) {
           const parts = tx.startDate.split('-');
           if (parts[1]) annualMonth = parseInt(parts[1], 10);
         }
         if (!annualMonth || isNaN(annualMonth)) annualMonth = 1;
         applies = (currentMonthNumber === annualMonth);
-      } else if (tx.frequency === 'puntual') {
+      } else if (effectiveFrequency === 'puntual') {
         applies = tx.startDate === monthKey || (tx.startDate && tx.startDate.startsWith(monthKey));
+      } else if (effectiveFrequency.startsWith('cada_') || activeRateStep?.intervalMonths) {
+        const interval = activeRateStep?.intervalMonths || parseInt(effectiveFrequency.replace(/\D/g, ''), 10) || 1;
+        let baseMonth = effectiveMonthOfYear || 1;
+        applies = ((currentMonthNumber - baseMonth) % interval + interval) % interval === 0;
       }
 
       if (applies) {
         const override = overrides.find(o => o.transactionId === tx.id);
         if (override && override.excluded) {
-          // Transaction explicitly excluded/deleted for this month
+          // Concepto excluido para este mes
           return;
         }
         const paymentInfo = monthPayments[tx.id] || { paid: false, date: null };
 
-        let itemDay = Number(tx.dayOfMonth) || 1;
+        let itemDay = Number(effectiveDay) || 1;
         if (override && override.dayOfMonth !== undefined && override.dayOfMonth !== null) {
           itemDay = Number(override.dayOfMonth);
-        } else if (tx.dayOfMonth) {
-          itemDay = Number(tx.dayOfMonth);
-        } else if (tx.frequency === 'puntual' && tx.startDate && tx.startDate.length >= 10) {
+        } else if (effectiveDay) {
+          itemDay = Number(effectiveDay);
+        } else if (effectiveFrequency === 'puntual' && tx.startDate && tx.startDate.length >= 10) {
           const parts = tx.startDate.split('-');
           if (parts[2]) {
             const parsedDay = parseInt(parts[2], 10);
@@ -846,23 +1184,6 @@ class Database {
           }
         }
         const safeDay = Math.min(Math.max(Math.floor(itemDay) || 1, 1), daysInMonth);
-
-        // Determine effective amount based on rateSteps for this month (e.g. mortgage year 1 vs year 2, salary raises)
-        let effectiveAmount = tx.amount;
-        let activeRateStep = null;
-        if (Array.isArray(tx.rateSteps) && tx.rateSteps.length > 0) {
-          const matchingStep = tx.rateSteps.find(step => {
-            const stepStart = step.startDate ? step.startDate.slice(0, 7) : null;
-            const stepEnd = step.endDate ? step.endDate.slice(0, 7) : null;
-            if (stepStart && monthKey < stepStart) return false;
-            if (stepEnd && monthKey > stepEnd) return false;
-            return true;
-          });
-          if (matchingStep && matchingStep.amount !== undefined && matchingStep.amount !== null) {
-            effectiveAmount = Number(matchingStep.amount) || 0;
-            activeRateStep = matchingStep;
-          }
-        }
 
         const categories = this.data.finance.categories || [];
         const catName = override ? override.category : tx.category;
@@ -879,7 +1200,7 @@ class Database {
           categoryGroup: catObj?.group || 'Varios',
           categoryColor: catObj?.color || '#f59e0b',
           categoryIcon: catObj?.icon || 'Tag',
-          frequency: tx.frequency,
+          frequency: effectiveFrequency,
           isRecurring,
           date: tx.startDate || null,
           dayOfMonth: safeDay,
@@ -1190,16 +1511,31 @@ class Database {
   // --- LOANS & MORTGAGES ---
   getLoans() {
     return (this.data.finance.loans || []).map(loan => {
+      const isFamily = Boolean(loan.isFamilyLoan || loan.type === 'familiar');
+      const repayments = Array.isArray(loan.repayments) ? loan.repayments : [];
+      const totalAmortized = repayments.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      
+      let currentBal = loan.currentBalance !== undefined 
+        ? Number(loan.currentBalance) 
+        : Math.max(0, (Number(loan.initialAmount) || 0) - totalAmortized);
+      
       const remainingMonths = loan.endDate ? this.calculateMonthsBetween(new Date().toISOString().slice(0, 7), loan.endDate) : 0;
-      const paidMonths = (loan.termYears * 12) - Math.max(remainingMonths, 0);
-      const progress = loan.initialAmount > 0 ? Math.min(100, Math.max(0, Math.round(((loan.initialAmount - loan.currentBalance) / loan.initialAmount) * 100))) : 0;
+      const paidMonths = ((loan.termYears || 0) * 12) - Math.max(remainingMonths, 0);
+      const totalPaidSoFar = (Number(loan.initialAmount) || 0) - currentBal;
+      const progress = loan.initialAmount > 0 
+        ? Math.min(100, Math.max(0, Math.round((totalPaidSoFar / loan.initialAmount) * 100))) 
+        : 0;
 
       return {
         ...loan,
+        isFamilyLoan: isFamily,
+        repayments,
+        totalAmortized,
+        currentBalance: currentBal,
         remainingMonths: Math.max(0, remainingMonths),
         paidMonths: Math.max(0, paidMonths),
         progressPercent: progress,
-        totalPaidSoFar: loan.initialAmount - loan.currentBalance
+        totalPaidSoFar
       };
     });
   }
@@ -1211,33 +1547,37 @@ class Database {
   }
 
   addLoan(loan) {
+    const isFamily = Boolean(loan.isFamilyLoan || loan.type === 'familiar');
     const newLoan = {
       id: `loan-${Date.now()}`,
-      name: loan.name || 'Nuevo Préstamo',
-      type: loan.type || 'personal', // 'hipoteca' | 'coche' | 'personal' | 'reforma'
-      bank: loan.bank || '',
+      name: loan.name || (isFamily ? 'Préstamo Padres / Familia' : 'Nuevo Préstamo'),
+      type: loan.type || (isFamily ? 'familiar' : 'personal'),
+      isFamilyLoan: isFamily,
+      bank: loan.bank || (isFamily ? 'Padres / Familia' : ''),
       initialAmount: Number(loan.initialAmount) || 0,
-      currentBalance: Number(loan.currentBalance) || Number(loan.initialAmount) || 0,
-      interestRate: Number(loan.interestRate) || 0,
+      currentBalance: Number(loan.currentBalance !== undefined ? loan.currentBalance : loan.initialAmount) || 0,
+      interestRate: isFamily ? 0 : (Number(loan.interestRate) || 0),
       interestType: loan.interestType || 'fijo',
-      monthlyPayment: Number(loan.monthlyPayment) || 0,
+      monthlyPayment: isFamily ? 0 : (Number(loan.monthlyPayment) || 0),
       startDate: loan.startDate || new Date().toISOString().slice(0, 7),
-      endDate: loan.endDate || null,
-      termYears: Number(loan.termYears) || 5,
+      endDate: isFamily ? null : (loan.endDate || null),
+      termYears: isFamily ? null : (Number(loan.termYears) || 5),
       propertyValue: loan.propertyValue ? Number(loan.propertyValue) : null,
-      notes: loan.notes || ''
+      notes: loan.notes || '',
+      repayments: Array.isArray(loan.repayments) ? loan.repayments : [],
+      status: loan.status || 'activo'
     };
 
     if (!this.data.finance.loans) this.data.finance.loans = [];
     this.data.finance.loans.push(newLoan);
 
-    // Auto-create a recurring transaction if requested
-    if (loan.autoCreateTransaction !== false && newLoan.monthlyPayment > 0) {
+    // Auto-create a recurring transaction if requested and has monthlyPayment
+    if (loan.autoCreateTransaction !== false && newLoan.monthlyPayment > 0 && !isFamily) {
       this.addFinanceTransaction({
         title: `Cuota ${newLoan.name}`,
         amount: newLoan.monthlyPayment,
         type: 'gasto',
-        category: newLoan.type === 'hipoteca' ? 'Vivienda' : 'Vehículo',
+        category: newLoan.type === 'hipoteca' ? 'Vivienda' : (newLoan.type === 'coche' ? 'Vehículo' : 'General'),
         frequency: 'mensual',
         dayOfMonth: loan.dayOfMonth || 1,
         startDate: newLoan.startDate,
@@ -1249,6 +1589,61 @@ class Database {
 
     this.save();
     return newLoan;
+  }
+
+  addLoanRepayment(loanId, { amount, date, notes, registerExpense = false }) {
+    const loan = (this.data.finance.loans || []).find(l => l.id === loanId);
+    if (!loan) throw new Error('Préstamo no encontrado');
+    const cleanAmount = parseFloat(amount);
+    if (isNaN(cleanAmount) || cleanAmount <= 0) throw new Error('El importe debe ser mayor a 0');
+    const cleanDate = date || new Date().toISOString().slice(0, 10);
+
+    if (!Array.isArray(loan.repayments)) loan.repayments = [];
+    const rep = {
+      id: `rep-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      amount: cleanAmount,
+      date: cleanDate,
+      notes: notes || 'Devolución / Pago extraordinario',
+      createdAt: new Date().toISOString()
+    };
+    loan.repayments.push(rep);
+
+    // Descontar del capital pendiente
+    const prevBalance = loan.currentBalance !== undefined ? Number(loan.currentBalance) : Number(loan.initialAmount);
+    loan.currentBalance = Math.max(0, prevBalance - cleanAmount);
+    loan.totalAmortized = (Number(loan.totalAmortized) || 0) + cleanAmount;
+
+    // Si el usuario seleccionó computar como gasto del mes para descontarlo del dinero de la cuenta:
+    if (registerExpense) {
+      this.addPunctualExpenseShortcut({
+        titulo: `Pago / Devolución ${loan.name}`,
+        importe: cleanAmount,
+        categoria: loan.type === 'hipoteca' ? 'Vivienda' : 'Préstamos',
+        fecha: cleanDate,
+        metodo_pago: 'Transferencia',
+        notas: notes ? `[Amortización] ${notes}` : '[Amortización de préstamo]',
+        origen: 'prestamo_devolucion',
+        pagado: true
+      });
+    }
+
+    this.save();
+    return { success: true, loan, repayment: rep };
+  }
+
+  deleteLoanRepayment(loanId, repaymentId) {
+    const loan = (this.data.finance.loans || []).find(l => l.id === loanId);
+    if (!loan) throw new Error('Préstamo no encontrado');
+    if (!Array.isArray(loan.repayments)) return { success: true };
+
+    const rep = loan.repayments.find(r => r.id === repaymentId);
+    if (rep) {
+      loan.currentBalance = (Number(loan.currentBalance) || 0) + Number(rep.amount);
+      loan.totalAmortized = Math.max(0, (Number(loan.totalAmortized) || 0) - Number(rep.amount));
+      loan.repayments = loan.repayments.filter(r => r.id !== repaymentId);
+      this.save();
+    }
+    return { success: true, loan };
   }
 
   updateLoan(id, updates) {

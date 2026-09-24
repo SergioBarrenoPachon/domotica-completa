@@ -342,6 +342,25 @@ router.post('/loans/:id/simulate', (req, res) => {
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
   }
+// POST /api/finance/loans/:id/repay - Registrar amortización o devolución (especialmente útil para préstamos familiares o extraordinarios)
+router.post('/loans/:id/repay', (req, res) => {
+  try {
+    const { amount, date, notes, registerExpense } = req.body;
+    const result = db.addLoanRepayment(req.params.id, { amount, date, notes, registerExpense });
+    res.json({ success: true, data: result, message: 'Pago / devolución de préstamo registrado correctamente' });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/finance/loans/:id/repayment/:repaymentId - Eliminar una amortización registrada
+router.delete('/loans/:id/repayment/:repaymentId', (req, res) => {
+  try {
+    const result = db.deleteLoanRepayment(req.params.id, req.params.repaymentId);
+    res.json({ success: true, data: result, message: 'Devolución eliminada' });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
 });
 
 // --- SAVINGS GOALS ENDPOINTS ---
@@ -397,6 +416,71 @@ router.post('/goals/:id/contribute', (req, res) => {
     res.json({ success: true, data: goal });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// --- APPLE SHORTCUTS & AUTOMATIZACIONES DE GASTOS PUNTUALES ---
+
+// POST /api/finance/shortcuts/gasto - Inclusión de gasto puntual desde Atajo de Apple
+router.post('/shortcuts/gasto', async (req, res) => {
+  try {
+    const result = await db.addPunctualExpenseShortcut(req.body);
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('[Apple Shortcuts Error]', error.message);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message,
+      speechFeedback: `Error: ${error.message}`
+    });
+  }
+});
+
+// GET /api/finance/shortcuts/gasto - Soporte de petición rápida vía URL o documentación
+router.get('/shortcuts/gasto', async (req, res) => {
+  try {
+    if (req.query.titulo || req.query.title || req.query.concepto || req.query.importe || req.query.amount) {
+      const result = await db.addPunctualExpenseShortcut(req.query);
+      return res.status(201).json(result);
+    }
+    
+    // Instrucciones y formato
+    res.json({
+      endpoint: '/api/finance/shortcuts/gasto',
+      metodos: ['POST', 'GET'],
+      descripcion: 'Registra un gasto puntual en la base de datos Neon PostgreSQL y lo computa en las finanzas del hogar.',
+      ejemploJSON: {
+        titulo: 'Café / Compra Mercadona / Gasolina',
+        importe: 14.50,
+        categoria: 'Alimentación',
+        fecha: new Date().toISOString().slice(0, 10),
+        metodo_pago: 'Apple Pay',
+        notas: 'Registrado desde Atajos de iOS'
+      }
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/finance/shortcuts/gastos - Listar gastos puntuales guardados en PostgreSQL
+router.get('/shortcuts/gastos', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 100;
+    const gastos = await db.getPunctualExpensesFromPg(limit);
+    res.json({ success: true, count: gastos.length, data: gastos });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/finance/shortcuts/gasto/:id - Eliminar gasto puntual de PostgreSQL
+router.delete('/shortcuts/gasto/:id', async (req, res) => {
+  try {
+    const result = await db.deletePunctualExpense(req.params.id);
+    res.json({ success: true, data: result, message: 'Gasto puntual eliminado correctamente' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

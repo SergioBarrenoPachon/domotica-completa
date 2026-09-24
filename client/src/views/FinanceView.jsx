@@ -7,7 +7,11 @@ import {
   Calendar as CalendarIcon, 
   Wallet,
   Layers,
-  Sparkles
+  Sparkles,
+  TrendingUp,
+  Zap,
+  Repeat,
+  Coins
 } from 'lucide-react';
 
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,7 +20,10 @@ import FinanceCalendar from '../components/finance/FinanceCalendar';
 
 const AddExpenseModal = React.lazy(() => import('../components/finance/AddExpenseModal'));
 const AdjustMonthModal = React.lazy(() => import('../components/finance/AdjustMonthModal'));
-const ContractsAndRulesManager = React.lazy(() => import('../components/finance/ContractsAndRulesManager'));
+const IncomeManager = React.lazy(() => import('../components/finance/IncomeManager'));
+const RecurringExpensesManager = React.lazy(() => import('../components/finance/RecurringExpensesManager'));
+const PunctualExpensesManager = React.lazy(() => import('../components/finance/PunctualExpensesManager'));
+const LoansManager = React.lazy(() => import('../components/finance/LoansManager'));
 
 function FinanceView({ api, onRefreshDashboard, refreshKey }) {
   // Current viewing month (YYYY-MM)
@@ -28,10 +35,9 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
   const [monthData, setMonthData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Active View Tab: 'calendar' | 'contracts'
+  // Active View Tab: 'calendar' | 'incomes' | 'recurring' | 'punctual' | 'loans'
   const [activeTab, setActiveTab] = useState('calendar');
   const [calendarFilter, setCalendarFilter] = useState('all');
-
 
   // Modals
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -45,7 +51,6 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
     monthOfYear: 1
   });
   const [adjustModalItem, setAdjustModalItem] = useState(null);
-
 
   const loadMonthData = useCallback(async (monthKey) => {
     try {
@@ -209,7 +214,7 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
             Economía & Tesorería
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Motor predictivo de pagos, control de nóminas, calendario de recibos y proyección de saldo.
+            Gestión separada de ingresos, gastos periódicos por tramos, gastos puntuales y préstamos/hipotecas.
           </p>
         </div>
 
@@ -259,12 +264,13 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
         </div>
       </div>
 
-      {/* SELECTOR DE VISTA: CALENDARIO (PRINCIPAL) vs CONTRATOS, PRÉSTAMOS Y FIJOS */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="p-1 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center gap-1 shadow-inner-light">
+      {/* 2. SELECTOR DE 5 PESTAÑAS ORGANIZADAS */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <div className="p-1 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center gap-1 shadow-inner-light whitespace-nowrap">
+          {/* Pestaña 1: Calendario & Tesorería */}
           <button
             onClick={() => setActiveTab('calendar')}
-            className={`min-h-[38px] px-4 sm:px-5 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
+            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
               activeTab === 'calendar'
                 ? 'bg-amber-400 text-black shadow-md shadow-amber-400/25'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
@@ -274,29 +280,64 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
             <span>Calendario & Previsión</span>
           </button>
 
+          {/* Pestaña 2: Ingresos & Nóminas */}
           <button
-            onClick={() => setActiveTab('contracts')}
-            className={`min-h-[38px] px-4 sm:px-5 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
-              activeTab === 'contracts'
+            onClick={() => setActiveTab('incomes')}
+            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
+              activeTab === 'incomes'
+                ? 'bg-emerald-400 text-black shadow-md shadow-emerald-400/25'
+                : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4 stroke-[2.2]" />
+            <span>Ingresos & Nóminas</span>
+          </button>
+
+          {/* Pestaña 3: Gastos Periódicos */}
+          <button
+            onClick={() => setActiveTab('recurring')}
+            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
+              activeTab === 'recurring'
+                ? 'bg-rose-400 text-black shadow-md shadow-rose-400/25'
+                : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
+            }`}
+          >
+            <Repeat className="w-4 h-4 stroke-[2.2]" />
+            <span>Gastos Periódicos</span>
+          </button>
+
+          {/* Pestaña 4: Gastos Puntuales */}
+          <button
+            onClick={() => setActiveTab('punctual')}
+            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
+              activeTab === 'punctual'
                 ? 'bg-amber-400 text-black shadow-md shadow-amber-400/25'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
             }`}
           >
-            <Layers className="w-4 h-4 stroke-[2.2]" />
-            <span>Contratos, Préstamos y Fijos</span>
+            <Zap className="w-4 h-4 stroke-[2.2]" />
+            <span>Gastos Puntuales & Atajos</span>
+          </button>
+
+          {/* Pestaña 5: Préstamos e Hipotecas */}
+          <button
+            onClick={() => setActiveTab('loans')}
+            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
+              activeTab === 'loans'
+                ? 'bg-purple-400 text-black shadow-md shadow-purple-400/25'
+                : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
+            }`}
+          >
+            <Landmark className="w-4 h-4 stroke-[2.2]" />
+            <span>Préstamos & Hipotecas</span>
           </button>
         </div>
-
-        {activeTab === 'contracts' && (
-          <span className="text-xs text-amber-300/80 font-medium hidden sm:inline-block">
-            Modificaciones aquí se sincronizan al instante con el calendario
-          </span>
-        )}
       </div>
 
-      {activeTab === 'calendar' ? (
+      {/* 3. CONTENIDO SEGÚN LA PESTAÑA ACTIVA */}
+      {activeTab === 'calendar' && (
         <>
-          {/* 2. PANEL DE TESORERÍA (Estilo Apple Wallet / Apple Card) */}
+          {/* PANEL DE TESORERÍA (Estilo Apple Wallet / Apple Card) */}
           <div className="glass-ios p-5 sm:p-7 rounded-[32px] sm:rounded-[36px] border border-white/14 shadow-ambient space-y-4 sm:space-y-5 relative overflow-hidden">
             {/* Luz difusa ambiental ámbar iOS */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/8 rounded-full blur-3xl pointer-events-none" />
@@ -315,7 +356,7 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
                     {currentAvailableMoney >= 0 ? `+${formatMoney(currentAvailableMoney)}€` : `${formatMoney(currentAvailableMoney)}€`}
                   </span>
                   <span className="text-xs text-slate-400 font-medium">
-                    (Cobrado menos descontado hasta hoy)
+                    (Cobrado menos descontado/pagado hoy)
                   </span>
                 </div>
               </div>
@@ -373,7 +414,7 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
             </div>
           </div>
 
-          {/* 3. CALENDARIO MENSUAL COMPLETO - CENTRO DE CONTROL FINANCIERO */}
+          {/* CALENDARIO MENSUAL COMPLETO - CENTRO DE CONTROL FINANCIERO */}
           {monthData ? (
             <FinanceCalendar
               api={api}
@@ -408,14 +449,17 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
             </div>
           )}
         </>
-      ) : (
+      )}
+
+      {/* PESTAÑA 2: INGRESOS & NÓMINAS */}
+      {activeTab === 'incomes' && (
         <React.Suspense fallback={
           <div className="glass-ios p-12 text-center text-slate-400 space-y-3 rounded-3xl animate-pulse">
-            <CalendarIcon className="w-8 h-8 animate-spin mx-auto text-amber-400" />
-            <p className="font-bold text-white text-base">Cargando contratos y préstamos...</p>
+            <TrendingUp className="w-8 h-8 animate-spin mx-auto text-emerald-400" />
+            <p className="font-bold text-white text-base">Cargando gestor de nóminas e ingresos...</p>
           </div>
         }>
-          <ContractsAndRulesManager
+          <IncomeManager
             api={api}
             currentMonth={currentMonth}
             onDataChanged={() => {
@@ -426,7 +470,61 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
         </React.Suspense>
       )}
 
+      {/* PESTAÑA 3: GASTOS PERIÓDICOS */}
+      {activeTab === 'recurring' && (
+        <React.Suspense fallback={
+          <div className="glass-ios p-12 text-center text-slate-400 space-y-3 rounded-3xl animate-pulse">
+            <Repeat className="w-8 h-8 animate-spin mx-auto text-rose-400" />
+            <p className="font-bold text-white text-base">Cargando gastos periódicos y tramos...</p>
+          </div>
+        }>
+          <RecurringExpensesManager
+            api={api}
+            currentMonth={currentMonth}
+            onDataChanged={() => {
+              loadMonthData(currentMonth);
+              if (onRefreshDashboard) onRefreshDashboard();
+            }}
+          />
+        </React.Suspense>
+      )}
 
+      {/* PESTAÑA 4: GASTOS PUNTUALES & ATAJOS */}
+      {activeTab === 'punctual' && (
+        <React.Suspense fallback={
+          <div className="glass-ios p-12 text-center text-slate-400 space-y-3 rounded-3xl animate-pulse">
+            <Zap className="w-8 h-8 animate-spin mx-auto text-amber-400" />
+            <p className="font-bold text-white text-base">Cargando gastos puntuales...</p>
+          </div>
+        }>
+          <PunctualExpensesManager
+            api={api}
+            currentMonth={currentMonth}
+            onDataChanged={() => {
+              loadMonthData(currentMonth);
+              if (onRefreshDashboard) onRefreshDashboard();
+            }}
+          />
+        </React.Suspense>
+      )}
+
+      {/* PESTAÑA 5: PRÉSTAMOS E HIPOTECAS */}
+      {activeTab === 'loans' && (
+        <React.Suspense fallback={
+          <div className="glass-ios p-12 text-center text-slate-400 space-y-3 rounded-3xl animate-pulse">
+            <Landmark className="w-8 h-8 animate-spin mx-auto text-purple-400" />
+            <p className="font-bold text-white text-base">Cargando préstamos e hipotecas...</p>
+          </div>
+        }>
+          <LoansManager
+            api={api}
+            onRefresh={() => {
+              loadMonthData(currentMonth);
+              if (onRefreshDashboard) onRefreshDashboard();
+            }}
+          />
+        </React.Suspense>
+      )}
 
       {/* MODAL 1: AÑADIR CONCEPTO O RECIBO */}
       {addModalOpen && (
@@ -471,9 +569,9 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
         </React.Suspense>
       )}
 
-
     </div>
   );
 }
 
 export default React.memo(FinanceView);
+

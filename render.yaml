@@ -11,4 +11,6 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: DATABASE_URL
+        value: postgresql://neondb_owner:npg_U9nEsomKA4YW@ep-green-credit-b18kj1ct-pooler.c-5.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
 

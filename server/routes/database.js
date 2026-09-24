@@ -4,9 +4,9 @@ import { db } from '../db/database.js';
 const router = express.Router();
 
 // GET /api/database/status - Información de salud, persistencia y copias de seguridad
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   try {
-    const status = db.getDatabaseStatus();
+    const status = await db.getDatabaseStatus();
     res.json({ success: true, data: status });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

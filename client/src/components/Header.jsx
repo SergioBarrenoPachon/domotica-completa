@@ -63,11 +63,11 @@ function HeaderComponent({ dashboardSummary, onNavigate, onManualSync, isRefresh
               type="button"
               onClick={() => setShowDbModal(true)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] sm:text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all touch-press shadow-inner-light"
-              title="Base de datos permanente en disco del servidor (Sincronizada multidispositivo)"
+              title="Neon PostgreSQL & Automatizaciones de Atajos de Apple"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <Database className="w-3 h-3 hidden xs:inline opacity-80" />
-              <span>DB Central</span>
+              <span>Neon DB & Atajos</span>
             </button>
           </div>
           <p className="text-[11px] sm:text-xs md:text-sm text-slate-400 capitalize mt-0.5 truncate tracking-normal">
