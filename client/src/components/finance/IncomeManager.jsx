@@ -24,7 +24,8 @@ import {
   CheckCircle2,
   Building2,
   Gift,
-  DollarSign
+  DollarSign,
+  ArrowRightLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../Modal';
@@ -92,6 +93,20 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
     notes: '',
     isPaid: true
   });
+
+  // Modal para Editar / Renombrar / Redistribuir Concepto Completo
+  const [isConceptModalOpen, setIsConceptModalOpen] = useState(false);
+  const [editingConceptModal, setEditingConceptModal] = useState(null);
+  const [conceptForm, setConceptForm] = useState({
+    newName: '',
+    targetConcept: '',
+    customTarget: '',
+    mode: 'rename' // 'rename' | 'redistribute'
+  });
+  const [isUpdatingConcept, setIsUpdatingConcept] = useState(false);
+
+  // Modal para Redistribuir Cobro Individual Rápido
+  const [movingSingleItem, setMovingSingleItem] = useState(null);
 
   // Form states for recurring
   const [incomeForm, setIncomeForm] = useState({
@@ -188,6 +203,22 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
 
     return Object.values(groups).sort((a, b) => b.totalAmount - a.totalAmount);
   }, [punctualIncomes, currentMonth]);
+
+  // Lista unificada de todos los conceptos disponibles (presets + creados por el usuario)
+  const allAvailableConcepts = useMemo(() => {
+    const list = [...PRESET_CONCEPTS];
+    punctualIncomes.forEach(inc => {
+      const cat = inc.category || inc.title;
+      if (cat && !list.some(p => p.name.toLowerCase() === cat.toLowerCase())) {
+        list.push({
+          name: cat,
+          icon: '🏷️',
+          color: 'from-slate-500/20 to-gray-500/10 border-slate-400/30 text-slate-300'
+        });
+      }
+    });
+    return list;
+  }, [punctualIncomes]);
 
   const toggleExpand = (id) => {
     setExpandedIncomes(prev => ({ ...prev, [id]: !prev[id] }));
@@ -415,11 +446,12 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
 
   const handleOpenEditPunctual = (item) => {
     setEditingPunctual(item);
-    const isPreset = PRESET_CONCEPTS.some(p => p.name === item.category);
+    const itemCat = item.category || 'Otros Ingresos Extraordinarios';
+    const exists = allAvailableConcepts.some(p => p.name.toLowerCase() === itemCat.toLowerCase());
     setPunctualForm({
       title: item.title || '',
-      category: isPreset ? item.category : 'custom',
-      customCategory: isPreset ? '' : (item.category || ''),
+      category: exists ? itemCat : 'custom',
+      customCategory: exists ? '' : itemCat,
       amount: String(item.amount || ''),
       date: item.startDate ? item.startDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
       notes: item.notes || '',
@@ -470,7 +502,7 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
 
       setIsPunctualModalOpen(false);
       setEditingPunctual(null);
-      loadIncomes();
+      await loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
       alert('Error guardando ingreso puntual: ' + err.message);
@@ -481,10 +513,93 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
     if (!confirm(`¿Eliminar el registro de ingreso puntual "${title}"?`)) return;
     try {
       await api.deleteFinanceTransaction(id);
-      loadIncomes();
+      await loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
       alert('Error eliminando ingreso: ' + err.message);
+    }
+  };
+
+  // --- GESTIÓN Y REDISTRIBUCIÓN DE CONCEPTOS ---
+  const handleOpenEditConcept = (group) => {
+    setEditingConceptModal(group);
+    const otherConcepts = allAvailableConcepts.filter(p => p.name.toLowerCase() !== group.concept.toLowerCase());
+    setConceptForm({
+      newName: group.concept,
+      targetConcept: otherConcepts.length > 0 ? otherConcepts[0].name : '',
+      customTarget: '',
+      mode: 'rename'
+    });
+    setIsConceptModalOpen(true);
+  };
+
+  const handleSaveConcept = async (e) => {
+    e.preventDefault();
+    if (!editingConceptModal) return;
+
+    const oldName = editingConceptModal.concept;
+
+    try {
+      setIsUpdatingConcept(true);
+
+      if (conceptForm.mode === 'rename') {
+        const newName = conceptForm.newName.trim();
+        if (!newName || newName.toLowerCase() === oldName.toLowerCase()) {
+          setIsConceptModalOpen(false);
+          return;
+        }
+
+        const itemsToUpdate = punctualIncomes.filter(i => 
+          (i.category || i.title || 'Otros Ingresos Extraordinarios').toLowerCase() === oldName.toLowerCase()
+        );
+        
+        await Promise.all(
+          itemsToUpdate.map(item => api.updateFinanceTransaction(item.id, { category: newName }))
+        );
+      } else if (conceptForm.mode === 'redistribute') {
+        const targetName = conceptForm.targetConcept === 'custom' 
+          ? conceptForm.customTarget.trim() 
+          : conceptForm.targetConcept;
+
+        if (!targetName || targetName.toLowerCase() === oldName.toLowerCase()) {
+          setIsConceptModalOpen(false);
+          return;
+        }
+
+        const itemsToUpdate = punctualIncomes.filter(i => 
+          (i.category || i.title || 'Otros Ingresos Extraordinarios').toLowerCase() === oldName.toLowerCase()
+        );
+        
+        await Promise.all(
+          itemsToUpdate.map(item => api.updateFinanceTransaction(item.id, { category: targetName }))
+        );
+      }
+
+      setIsConceptModalOpen(false);
+      setEditingConceptModal(null);
+      await loadIncomes();
+      if (onDataChanged) onDataChanged();
+    } catch (err) {
+      console.error('Error actualizando concepto:', err);
+      alert('Error al gestionar concepto: ' + err.message);
+    } finally {
+      setIsUpdatingConcept(false);
+    }
+  };
+
+  const handleMoveSingleItem = async (item, targetConcept) => {
+    if (!targetConcept || item.category === targetConcept) {
+      setMovingSingleItem(null);
+      return;
+    }
+    try {
+      await api.updateFinanceTransaction(item.id, { category: targetConcept });
+      setMovingSingleItem(null);
+      await loadIncomes();
+      if (onDataChanged) onDataChanged();
+    } catch (err) {
+      console.error('Error redistribuyendo cobro:', err);
+      alert('Error: ' + err.message);
     }
   };
 
@@ -744,14 +859,25 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
                     </div>
 
                     {/* Botones de acción rápida del concepto */}
-                    <div className="flex items-center justify-between pt-2 border-t border-white/8 text-xs">
-                      <button
-                        onClick={() => handleOpenAddPunctual(group.concept)}
-                        className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-amber-300 font-semibold flex items-center gap-1.5 transition-all"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Añadir a {group.concept.split(' ')[0]}</span>
-                      </button>
+                    <div className="flex items-center justify-between pt-2 border-t border-white/8 text-xs flex-wrap gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          onClick={() => handleOpenAddPunctual(group.concept)}
+                          className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-amber-300 font-semibold flex items-center gap-1.5 transition-all"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Añadir cobro</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenEditConcept(group)}
+                          className="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.10] text-slate-300 hover:text-white font-medium flex items-center gap-1.5 transition-all"
+                          title="Renombrar concepto o redistribuir todos sus cobros"
+                        >
+                          <Edit3 className="w-3 h-3 text-amber-400" />
+                          <span>Editar / Redistribuir</span>
+                        </button>
+                      </div>
 
                       <button
                         onClick={() => toggleConceptExpand(group.concept)}
@@ -796,6 +922,13 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
                                 </span>
 
                                 <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => setMovingSingleItem(item)}
+                                    className="p-1.5 rounded-xl hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 transition-all"
+                                    title="Mover este cobro a otro concepto"
+                                  >
+                                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                                  </button>
                                   <button
                                     onClick={() => handleOpenEditPunctual(item)}
                                     className="p-1.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all"
@@ -1461,13 +1594,15 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
                 onChange={(e) => setPunctualForm({ ...punctualForm, category: e.target.value })}
                 className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
               >
-                {PRESET_CONCEPTS.map(p => (
-                  <option key={p.name} value={p.name} className="bg-slate-900 text-white">
-                    {p.icon} {p.name}
-                  </option>
-                ))}
-                <option value="custom" className="bg-slate-900 text-white">
-                  ➕ Otro Concepto Personalizado...
+                <optgroup label="Conceptos Disponibles">
+                  {allAvailableConcepts.map(p => (
+                    <option key={p.name} value={p.name} className="bg-slate-900 text-white">
+                      {p.icon} {p.name}
+                    </option>
+                  ))}
+                </optgroup>
+                <option value="custom" className="bg-slate-900 text-white font-bold">
+                  ➕ Crear Nuevo Concepto Personalizado...
                 </option>
               </select>
             </div>
@@ -1508,8 +1643,8 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
                   Importe del Cobro (€) *
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   required
                   value={punctualForm.amount}
                   onChange={(e) => setPunctualForm({ ...punctualForm, amount: e.target.value })}
@@ -1575,6 +1710,207 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* --- MODAL 4: GESTIONAR / RENOMBRAR / REDISTRIBUIR CONCEPTO COMPLETO --- */}
+      {isConceptModalOpen && editingConceptModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => {
+            setIsConceptModalOpen(false);
+            setEditingConceptModal(null);
+          }}
+          title={`Gestionar Concepto: ${editingConceptModal.concept}`}
+        >
+          <form onSubmit={handleSaveConcept} className="space-y-4">
+            <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-slate-400 block font-display">Concepto seleccionado:</span>
+                <span className="text-white font-bold text-sm flex items-center gap-1.5 mt-0.5">
+                  <span>{editingConceptModal.icon}</span>
+                  <span>{editingConceptModal.concept}</span>
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-slate-400 block font-display">Cobros acumulados:</span>
+                <span className="text-emerald-300 font-bold font-mono">
+                  {editingConceptModal.items.length} ({formatMoney(editingConceptModal.totalAmount)} €)
+                </span>
+              </div>
+            </div>
+
+            {/* Selector de modo: Renombrar vs Redistribuir */}
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10">
+              <button
+                type="button"
+                onClick={() => setConceptForm({ ...conceptForm, mode: 'rename' })}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                  conceptForm.mode === 'rename'
+                    ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Renombrar Concepto</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setConceptForm({ ...conceptForm, mode: 'redistribute' })}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                  conceptForm.mode === 'redistribute'
+                    ? 'bg-cyan-400 text-slate-950 font-black shadow-sm'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>Redistribuir Cobros</span>
+              </button>
+            </div>
+
+            {conceptForm.mode === 'rename' ? (
+              <div className="space-y-2">
+                <label className="text-xs text-slate-300 font-semibold block font-display">
+                  Nuevo Nombre para este Concepto *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={conceptForm.newName}
+                  onChange={(e) => setConceptForm({ ...conceptForm, newName: e.target.value })}
+                  placeholder="Ej: Ventas Wallapop & Vinted, Bonus Anual..."
+                  className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+                />
+                <p className="text-[11px] text-slate-400">
+                  💡 Todos los cobros asociados ({editingConceptModal.items.length} {editingConceptModal.items.length === 1 ? 'registro' : 'registros'}) pasarán a tener este nuevo nombre como concepto.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">
+                    Mover todos los cobros hacia el concepto: *
+                  </label>
+                  <select
+                    value={conceptForm.targetConcept}
+                    onChange={(e) => setConceptForm({ ...conceptForm, targetConcept: e.target.value })}
+                    className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+                  >
+                    {allAvailableConcepts
+                      .filter(p => p.name.toLowerCase() !== editingConceptModal.concept.toLowerCase())
+                      .map(p => (
+                        <option key={p.name} value={p.name} className="bg-slate-900 text-white">
+                          {p.icon} {p.name}
+                        </option>
+                      ))}
+                    <option value="custom" className="bg-slate-900 text-white font-bold">
+                      ➕ Crear y mover a un nuevo concepto...
+                    </option>
+                  </select>
+                </div>
+
+                {conceptForm.targetConcept === 'custom' && (
+                  <div>
+                    <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">
+                      Nombre del nuevo concepto destino *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={conceptForm.customTarget}
+                      onChange={(e) => setConceptForm({ ...conceptForm, customTarget: e.target.value })}
+                      placeholder="Ej: Nuevo concepto agrupador..."
+                      className="glass-input rounded-2xl px-3.5 py-2.5 text-white text-sm focus:border-white/30 outline-none w-full"
+                    />
+                  </div>
+                )}
+
+                <p className="text-[11px] text-cyan-300 bg-cyan-500/10 p-2.5 rounded-xl border border-cyan-500/20">
+                  ℹ️ Los {editingConceptModal.items.length} cobros de <strong>"{editingConceptModal.concept}"</strong> se transferirán al concepto elegido y se unificarán.
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConceptModalOpen(false);
+                  setEditingConceptModal(null);
+                }}
+                className="px-4 py-2 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] text-white text-xs font-bold active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isUpdatingConcept}
+                className="px-5 py-2 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {isUpdatingConcept ? 'Actualizando...' : (conceptForm.mode === 'rename' ? 'Guardar Nuevo Nombre' : 'Redistribuir Cobros')}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* --- MODAL 5: REDISTRIBUIR COBRO INDIVIDUAL A OTRO CONCEPTO --- */}
+      {movingSingleItem && (
+        <Modal
+          isOpen={true}
+          onClose={() => setMovingSingleItem(null)}
+          title="Mover Cobro a Otro Concepto"
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
+              <span className="text-[11px] text-slate-400 block font-display">Cobro a redistribuir:</span>
+              <p className="text-white font-bold text-sm font-display">{movingSingleItem.title}</p>
+              <div className="flex items-center gap-2 text-xs text-emerald-300 font-mono">
+                <span>+{formatMoney(movingSingleItem.amount)} €</span>
+                <span>•</span>
+                <span className="text-slate-400">{movingSingleItem.startDate || 'Sin fecha'}</span>
+              </div>
+              <span className="text-[11px] text-amber-400 block pt-1">
+                Concepto actual: <strong>{movingSingleItem.category || 'Otros Ingresos Extraordinarios'}</strong>
+              </span>
+            </div>
+
+            <div>
+              <label className="text-xs text-slate-300 font-semibold block mb-2 font-display">
+                Selecciona el nuevo concepto para este cobro:
+              </label>
+              <div className="grid grid-cols-1 gap-1.5 max-h-60 overflow-y-auto pr-1">
+                {allAvailableConcepts
+                  .filter(c => c.name.toLowerCase() !== (movingSingleItem.category || '').toLowerCase())
+                  .map(concept => (
+                    <button
+                      key={concept.name}
+                      type="button"
+                      onClick={() => handleMoveSingleItem(movingSingleItem, concept.name)}
+                      className="p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.10] border border-white/8 hover:border-amber-400/40 text-left flex items-center justify-between transition-all group"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-lg">{concept.icon}</span>
+                        <span className="text-xs font-bold text-white group-hover:text-amber-300 transition-colors">
+                          {concept.name}
+                        </span>
+                      </div>
+                      <ArrowRightLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 transition-colors" />
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setMovingSingleItem(null)}
+                className="px-4 py-2 rounded-2xl bg-white/[0.08] hover:bg-white/[0.14] text-white text-xs font-bold active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 
