@@ -22,6 +22,11 @@ function DashboardViewComponent({ summary, onNavigate, onQuickToggleScene }) {
   const meals = summary?.meals || { today: null, shoppingPendingCount: 0 };
   const alerts = summary?.alerts || { criticalCount: 0, warningCount: 0, lowStockPantryCount: 0 };
 
+  const formatMoney = (val) => {
+    const num = Number(val) || 0;
+    return num.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     show: {
@@ -78,11 +83,11 @@ function DashboardViewComponent({ summary, onNavigate, onQuickToggleScene }) {
               <TrendingUp className="w-5 h-5" />
             </div>
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 font-mono">
-              +{finance.totalIncome}€
+              +{formatMoney(finance.totalIncome)}€
             </span>
           </div>
           <p className="text-2xl sm:text-3xl font-bold text-white mt-3 font-display tracking-tight">
-            {finance.projectedBalance >= 0 ? `+${finance.projectedBalance}€` : `${finance.projectedBalance}€`}
+            {finance.projectedBalance >= 0 ? `+${formatMoney(finance.projectedBalance)}€` : `${formatMoney(finance.projectedBalance)}€`}
           </p>
           <p className="text-xs text-slate-400 truncate mt-0.5 font-medium">Balance Estimado</p>
         </motion.div>
@@ -230,7 +235,7 @@ function DashboardViewComponent({ summary, onNavigate, onQuickToggleScene }) {
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-400">Proyección del mes:</span>
                 <span className="font-bold text-white font-mono">
-                  {finance.totalIncome}€ - {finance.totalExpenses}€ = <span className={finance.projectedBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{finance.projectedBalance}€</span>
+                  {formatMoney(finance.totalIncome)}€ - {formatMoney(finance.totalExpenses)}€ = <span className={finance.projectedBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{finance.projectedBalance >= 0 ? `+${formatMoney(finance.projectedBalance)}€` : `${formatMoney(finance.projectedBalance)}€`}</span>
                 </span>
               </div>
               <div className="w-full bg-black/40 h-2.5 rounded-full overflow-hidden flex border border-white/5">
@@ -246,8 +251,8 @@ function DashboardViewComponent({ summary, onNavigate, onQuickToggleScene }) {
                 />
               </div>
               <div className="flex justify-between text-[11px] text-slate-400 font-mono">
-                <span className="text-emerald-300 font-medium">Cobrado: {finance.paidIncome}€</span>
-                <span className="text-amber-300 font-medium">Pagado: {finance.paidExpenses}€</span>
+                <span className="text-emerald-300 font-medium">Cobrado: +{formatMoney(finance.paidIncome)}€</span>
+                <span className="text-amber-300 font-medium">Pagado: -{formatMoney(finance.paidExpenses)}€</span>
               </div>
             </div>
           </div>

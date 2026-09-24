@@ -827,7 +827,7 @@ export default function ContractsAndRulesManager({ api, currentMonth, onDataChan
                             • {st.name || `Tramo ${idx + 1}`}: {st.startDate} {st.endDate ? `a ${st.endDate}` : 'en adelante'}
                           </span>
                           <span className="font-mono font-bold text-amber-300">
-                            {st.amount}€/mes
+                            {Number(st.amount || 0).toFixed(2)}€/mes
                           </span>
                         </div>
                       ))}
@@ -1204,7 +1204,7 @@ export default function ContractsAndRulesManager({ api, currentMonth, onDataChan
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-mono font-bold text-amber-300 text-sm">
-                          {s.amount}€/mes
+                          {Number(s.amount || 0).toFixed(2)}€/mes
                         </span>
                         <button
                           type="button"

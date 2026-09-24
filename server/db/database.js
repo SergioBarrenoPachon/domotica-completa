@@ -1224,13 +1224,15 @@ class Database {
     // Sort items by day of month
     items.sort((a, b) => a.dayOfMonth - b.dayOfMonth);
 
-    const totalIncome = items.filter(i => i.type === 'ingreso').reduce((sum, i) => sum + i.amount, 0);
-    const totalExpenses = items.filter(i => i.type === 'gasto').reduce((sum, i) => sum + i.amount, 0);
-    const projectedBalance = totalIncome - totalExpenses;
+    const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
 
-    const paidIncome = items.filter(i => i.type === 'ingreso' && i.paid).reduce((sum, i) => sum + i.amount, 0);
-    const paidExpenses = items.filter(i => i.type === 'gasto' && i.paid).reduce((sum, i) => sum + i.amount, 0);
-    const currentActualBalance = paidIncome - paidExpenses;
+    const totalIncome = round2(items.filter(i => i.type === 'ingreso').reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
+    const totalExpenses = round2(items.filter(i => i.type === 'gasto').reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
+    const projectedBalance = round2(totalIncome - totalExpenses);
+
+    const paidIncome = round2(items.filter(i => i.type === 'ingreso' && i.paid).reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
+    const paidExpenses = round2(items.filter(i => i.type === 'gasto' && i.paid).reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
+    const currentActualBalance = round2(paidIncome - paidExpenses);
 
     // Expenses by category & group
     const categories = this.data.finance.categories || [];
@@ -1238,32 +1240,37 @@ class Database {
     const groupBreakdown = {};
 
     items.filter(i => i.type === 'gasto').forEach(i => {
-      categoryBreakdown[i.category] = (categoryBreakdown[i.category] || 0) + i.amount;
+      categoryBreakdown[i.category] = (categoryBreakdown[i.category] || 0) + (Number(i.amount) || 0);
 
       const grp = i.categoryGroup || 'Varios';
       if (!groupBreakdown[grp]) {
         groupBreakdown[grp] = { group: grp, amount: 0, count: 0 };
       }
-      groupBreakdown[grp].amount += i.amount;
+      groupBreakdown[grp].amount += (Number(i.amount) || 0);
       groupBreakdown[grp].count += 1;
     });
 
     const categoryList = Object.keys(categoryBreakdown).map(cat => {
       const catObj = categories.find(c => c.name.toLowerCase() === cat.toLowerCase());
+      const catAmt = round2(categoryBreakdown[cat]);
       return {
         name: cat,
         group: catObj?.group || 'Varios',
         color: catObj?.color || '#f59e0b',
         icon: catObj?.icon || 'Tag',
-        amount: categoryBreakdown[cat],
-        percentage: totalExpenses > 0 ? Math.round((categoryBreakdown[cat] / totalExpenses) * 100) : 0
+        amount: catAmt,
+        percentage: totalExpenses > 0 ? Math.round((catAmt / totalExpenses) * 100) : 0
       };
     }).sort((a, b) => b.amount - a.amount);
 
-    const groupList = Object.values(groupBreakdown).map(g => ({
-      ...g,
-      percentage: totalExpenses > 0 ? Math.round((g.amount / totalExpenses) * 100) : 0
-    })).sort((a, b) => b.amount - a.amount);
+    const groupList = Object.values(groupBreakdown).map(g => {
+      const grpAmt = round2(g.amount);
+      return {
+        ...g,
+        amount: grpAmt,
+        percentage: totalExpenses > 0 ? Math.round((grpAmt / totalExpenses) * 100) : 0
+      };
+    }).sort((a, b) => b.amount - a.amount);
 
     // Date calculations & Upcoming bills forecast
     const today = new Date();
@@ -1271,7 +1278,7 @@ class Database {
     const todayDay = isCurrentCalendarMonth ? today.getDate() : 1;
 
     const pendingExpenses = items.filter(i => i.type === 'gasto' && !i.paid);
-    const pendingExpensesTotal = pendingExpenses.reduce((sum, i) => sum + i.amount, 0);
+    const pendingExpensesTotal = round2(pendingExpenses.reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
 
     // Upcoming in next 7 days
     const upcoming7Days = pendingExpenses.filter(i => {
@@ -1280,12 +1287,12 @@ class Database {
       }
       return true;
     });
-    const upcoming7DaysTotal = upcoming7Days.reduce((sum, i) => sum + i.amount, 0);
+    const upcoming7DaysTotal = round2(upcoming7Days.reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
 
     const recurringExpensesCount = items.filter(i => i.type === 'gasto' && i.isRecurring).length;
     const everydayExpensesCount = items.filter(i => i.type === 'gasto' && !i.isRecurring).length;
-    const recurringExpensesTotal = items.filter(i => i.type === 'gasto' && i.isRecurring).reduce((sum, i) => sum + i.amount, 0);
-    const everydayExpensesTotal = items.filter(i => i.type === 'gasto' && !i.isRecurring).reduce((sum, i) => sum + i.amount, 0);
+    const recurringExpensesTotal = round2(items.filter(i => i.type === 'gasto' && i.isRecurring).reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
+    const everydayExpensesTotal = round2(items.filter(i => i.type === 'gasto' && !i.isRecurring).reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
 
     // Build Daily Calendar Map (1 to daysInMonth)
     const dailyBreakdown = {};
@@ -1305,9 +1312,9 @@ class Database {
       if (dayData) {
         dayData.items.push(item);
         if (item.type === 'ingreso') {
-          dayData.dayIncome += item.amount;
+          dayData.dayIncome = round2(dayData.dayIncome + (Number(item.amount) || 0));
         } else {
-          dayData.dayExpenses += item.amount;
+          dayData.dayExpenses = round2(dayData.dayExpenses + (Number(item.amount) || 0));
           if (!item.paid) dayData.hasPending = true;
         }
       }

@@ -58,13 +58,17 @@ router.get('/year/:year', (req, res) => {
       });
     }
 
+    const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    const finalIncome = round2(annualIncome);
+    const finalExpenses = round2(annualExpenses);
+
     res.json({
       success: true,
       data: {
         year,
-        annualIncome,
-        annualExpenses,
-        annualNetSavings: annualIncome - annualExpenses,
+        annualIncome: finalIncome,
+        annualExpenses: finalExpenses,
+        annualNetSavings: round2(finalIncome - finalExpenses),
         months
       }
     });
