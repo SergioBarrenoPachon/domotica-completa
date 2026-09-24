@@ -22,6 +22,21 @@ import {
 } from 'lucide-react';
 import Modal from '../Modal';
 
+const MONTH_NAMES = [
+  { num: 1, name: 'Ene', fullName: 'Enero' },
+  { num: 2, name: 'Feb', fullName: 'Febrero' },
+  { num: 3, name: 'Mar', fullName: 'Marzo' },
+  { num: 4, name: 'Abr', fullName: 'Abril' },
+  { num: 5, name: 'May', fullName: 'Mayo' },
+  { num: 6, name: 'Jun', fullName: 'Junio' },
+  { num: 7, name: 'Jul', fullName: 'Julio' },
+  { num: 8, name: 'Ago', fullName: 'Agosto' },
+  { num: 9, name: 'Sep', fullName: 'Septiembre' },
+  { num: 10, name: 'Oct', fullName: 'Octubre' },
+  { num: 11, name: 'Nov', fullName: 'Noviembre' },
+  { num: 12, name: 'Dic', fullName: 'Diciembre' }
+];
+
 export default function RecurringExpensesManager({ api, currentMonth, onDataChanged }) {
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -48,7 +63,9 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
     startDate: new Date().toISOString().slice(0, 7),
     endDate: '',
     isIndefinite: true,
-    notes: ''
+    notes: '',
+    customMonthsEnabled: false,
+    activeMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
   });
 
   const [periodForm, setPeriodForm] = useState({
@@ -96,17 +113,115 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
     setExpandedExpenses(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleToggleMonthInForm = (monthNum) => {
+    setExpenseForm(prev => {
+      const current = prev.activeMonths || [];
+      const exists = current.includes(monthNum);
+      let updated;
+      if (exists) {
+        if (current.length === 1) return prev; // Mantener al menos 1 mes activo
+        updated = current.filter(m => m !== monthNum);
+      } else {
+        updated = [...current, monthNum].sort((a, b) => a - b);
+      }
+      return {
+        ...prev,
+        customMonthsEnabled: updated.length < 12,
+        activeMonths: updated
+      };
+    });
+  };
+
+  const handleApplyMonthPreset = (preset) => {
+    if (preset === 'all') {
+      setExpenseForm(prev => ({
+        ...prev,
+        customMonthsEnabled: false,
+        activeMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      }));
+    } else if (preset === '10_first') {
+      // 10 primeros meses del año (Enero a Octubre) - Específico para seguro de coche fraccionado
+      setExpenseForm(prev => ({
+        ...prev,
+        customMonthsEnabled: true,
+        activeMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      }));
+    } else if (preset === '10_sep_jun') {
+      // 10 meses curso (Septiembre a Junio)
+      setExpenseForm(prev => ({
+        ...prev,
+        customMonthsEnabled: true,
+        activeMonths: [1, 2, 3, 4, 5, 6, 9, 10, 11, 12]
+      }));
+    } else if (preset === 'semestral_jun_dic') {
+      setExpenseForm(prev => ({
+        ...prev,
+        customMonthsEnabled: true,
+        activeMonths: [6, 12]
+      }));
+    } else if (preset === 'trimestral') {
+      setExpenseForm(prev => ({
+        ...prev,
+        customMonthsEnabled: true,
+        activeMonths: [3, 6, 9, 12]
+      }));
+    }
+  };
+
+  const handleOpenNewExpense = () => {
+    setEditingExpense(null);
+    setExpenseForm({
+      title: '',
+      amount: '',
+      category: 'Vivienda',
+      frequency: 'mensual',
+      dayOfMonth: 1,
+      monthOfYear: 1,
+      startDate: new Date().toISOString().slice(0, 7),
+      endDate: '',
+      isIndefinite: true,
+      notes: '',
+      customMonthsEnabled: false,
+      activeMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    });
+    setIsAddExpenseModalOpen(true);
+  };
+
+  const handleOpenEditExpense = (exp) => {
+    setEditingExpense(exp);
+    const hasCustomMonths = Array.isArray(exp.activeMonths) && exp.activeMonths.length > 0 && exp.activeMonths.length < 12;
+    setExpenseForm({
+      title: exp.title || '',
+      amount: exp.amount || '',
+      category: exp.category || 'Vivienda',
+      frequency: exp.frequency || 'mensual',
+      dayOfMonth: exp.dayOfMonth || 1,
+      monthOfYear: exp.monthOfYear || 1,
+      startDate: exp.startDate || '',
+      endDate: exp.endDate || '',
+      isIndefinite: exp.isIndefinite !== false,
+      notes: exp.notes || '',
+      customMonthsEnabled: hasCustomMonths,
+      activeMonths: Array.isArray(exp.activeMonths) && exp.activeMonths.length > 0 
+        ? exp.activeMonths 
+        : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    });
+    setIsAddExpenseModalOpen(true);
+  };
+
   const handleSaveExpense = async (e) => {
     e.preventDefault();
     if (!expenseForm.title || !expenseForm.amount) return;
 
     try {
+      const hasCustom = expenseForm.customMonthsEnabled && expenseForm.activeMonths && expenseForm.activeMonths.length < 12;
       const payload = {
         ...expenseForm,
         type: 'gasto',
         amount: parseFloat(String(expenseForm.amount).replace(',', '.')),
         dayOfMonth: parseInt(expenseForm.dayOfMonth, 10) || 1,
         monthOfYear: parseInt(expenseForm.monthOfYear, 10) || 1,
+        activeMonths: hasCustom ? expenseForm.activeMonths : null,
         rateSteps: editingExpense ? (editingExpense.rateSteps || []) : []
       };
 
@@ -128,7 +243,9 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
         startDate: new Date().toISOString().slice(0, 7),
         endDate: '',
         isIndefinite: true,
-        notes: ''
+        notes: '',
+        customMonthsEnabled: false,
+        activeMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
       });
       loadExpenses();
       if (onDataChanged) onDataChanged();
@@ -230,8 +347,9 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
   });
 
   const uniqueCategories = Array.from(new Set(expenses.map(e => e.category).filter(Boolean)));
+  const currentMonthNum = parseInt((currentMonth || '').split('-')[1], 10) || (new Date().getMonth() + 1);
 
-  // Estadísticas
+  // Estadísticas con ponderación según meses activos al año (ej: 10 de 12 meses para el seguro del coche)
   const totalMonthlyExpenses = expenses.reduce((sum, exp) => {
     if (!exp.active) return sum;
     let amt = Number(exp.amount) || 0;
@@ -249,11 +367,17 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
       }
     }
 
-    if (freq === 'mensual') return sum + amt;
+    // Factor según los meses en que efectivamente se cobra en el año
+    let monthsFactor = 1;
+    if (Array.isArray(exp.activeMonths) && exp.activeMonths.length > 0 && exp.activeMonths.length < 12) {
+      monthsFactor = exp.activeMonths.length / 12;
+    }
+
+    if (freq === 'mensual') return sum + (amt * monthsFactor);
     if (freq === 'trimestral') return sum + (amt / 3);
     if (freq === 'semestral') return sum + (amt / 6);
     if (freq === 'anual') return sum + (amt / 12);
-    return sum + amt;
+    return sum + (amt * monthsFactor);
   }, 0);
 
   return (
@@ -274,22 +398,7 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
         </div>
 
         <button
-          onClick={() => {
-            setEditingExpense(null);
-            setExpenseForm({
-              title: '',
-              amount: '',
-              category: 'Vivienda',
-              frequency: 'mensual',
-              dayOfMonth: 1,
-              monthOfYear: 1,
-              startDate: new Date().toISOString().slice(0, 7),
-              endDate: '',
-              isIndefinite: true,
-              notes: ''
-            });
-            setIsAddExpenseModalOpen(true);
-          }}
+          onClick={handleOpenNewExpense}
           className="min-h-touch px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all touch-press"
         >
           <Plus className="w-4 h-4 stroke-[3]" />
@@ -434,6 +543,17 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/[0.06] text-slate-300 border border-white/10">
                         {exp.category || 'General'}
                       </span>
+                      {Array.isArray(exp.activeMonths) && exp.activeMonths.length > 0 && exp.activeMonths.length < 12 && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                          <CalendarRange className="w-3 h-3 text-amber-400" />
+                          <span>{exp.activeMonths.length} de 12 meses {exp.activeMonths.length === 10 ? '(10 primeros)' : ''}</span>
+                        </span>
+                      )}
+                      {Array.isArray(exp.activeMonths) && exp.activeMonths.length > 0 && !exp.activeMonths.includes(currentMonthNum) && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/25">
+                          Libre este mes
+                        </span>
+                      )}
                       {activeStep && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/25 flex items-center gap-1">
                           <Sparkles className="w-3 h-3" />
@@ -442,7 +562,7 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
                       )}
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs text-slate-400">
+                    <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap">
                       <span>Día de cargo: <strong>Día {exp.dayOfMonth || 1}</strong></span>
                       <span>•</span>
                       <span>Frecuencia base: <strong>{exp.frequency}</strong></span>
@@ -453,6 +573,37 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
                         </>
                       )}
                     </div>
+
+                    {/* Chips de los 12 meses cuando tiene meses restringidos */}
+                    {Array.isArray(exp.activeMonths) && exp.activeMonths.length > 0 && exp.activeMonths.length < 12 && (
+                      <div className="flex items-center gap-1 pt-1 flex-wrap">
+                        <span className="text-[10px] text-slate-400 font-semibold mr-1 flex items-center gap-1">
+                          <CalendarRange className="w-3 h-3 text-amber-400" />
+                          Meses de cobro:
+                        </span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {MONTH_NAMES.map(m => {
+                            const isAct = exp.activeMonths.includes(m.num);
+                            const isThisMonth = m.num === currentMonthNum;
+                            return (
+                              <span
+                                key={m.num}
+                                title={`${m.fullName}: ${isAct ? 'Se cobra' : 'Libre de cuota'}`}
+                                className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-all ${
+                                  isAct
+                                    ? isThisMonth
+                                      ? 'bg-amber-400 text-slate-950 font-black shadow-sm ring-1 ring-amber-300'
+                                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                    : 'bg-white/[0.02] text-slate-600 line-through opacity-40'
+                                }`}
+                              >
+                                {m.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Botones de acción */}
@@ -482,24 +633,9 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setEditingExpense(exp);
-                        setExpenseForm({
-                          title: exp.title,
-                          amount: exp.amount,
-                          category: exp.category || 'Vivienda',
-                          frequency: exp.frequency || 'mensual',
-                          dayOfMonth: exp.dayOfMonth || 1,
-                          monthOfYear: exp.monthOfYear || 1,
-                          startDate: exp.startDate || '',
-                          endDate: exp.endDate || '',
-                          isIndefinite: exp.isIndefinite !== false,
-                          notes: exp.notes || ''
-                        });
-                        setIsAddExpenseModalOpen(true);
-                      }}
+                      onClick={() => handleOpenEditExpense(exp)}
                       className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white border border-white/10 transition-colors"
-                      title="Editar datos básicos"
+                      title="Editar datos básicos y meses de cobro"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                     </button>
@@ -650,6 +786,104 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
                   className="w-full px-3.5 py-2.5 rounded-2xl bg-white/[0.06] border border-white/10 text-white text-xs sm:text-sm focus:outline-none focus:border-amber-400"
                 />
               </div>
+            </div>
+
+            {/* PLANIFICACIÓN DE MESES DE COBRO (Ej: 10 primeros meses para seguro de coche) */}
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5 font-display">
+                    <CalendarRange className="w-3.5 h-3.5 text-amber-400" />
+                    Meses de Cobro al Año (Planificación personalizada)
+                  </span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Selecciona qué meses se cobra este recibo. Pulsa en un mes para activarlo o desactivarlo.
+                  </p>
+                </div>
+
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold self-start sm:self-auto border whitespace-nowrap ${
+                  (expenseForm.activeMonths?.length || 12) < 12
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                    : 'bg-white/[0.06] text-slate-300 border-white/10'
+                }`}>
+                  {expenseForm.activeMonths?.length || 12} de 12 meses
+                  {(expenseForm.activeMonths?.length || 12) === 10 ? ' (2 libres)' : ''}
+                </span>
+              </div>
+
+              {/* Botones Presets Rápidos */}
+              <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                <span className="text-[10px] uppercase font-bold text-slate-400 mr-0.5">Preajustes:</span>
+                <button
+                  type="button"
+                  onClick={() => handleApplyMonthPreset('10_first')}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all flex items-center gap-1 ${
+                    JSON.stringify(expenseForm.activeMonths) === JSON.stringify([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+                      ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md shadow-amber-400/25 ring-1 ring-amber-300'
+                      : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/20'
+                  }`}
+                  title="Se cobra los 10 primeros meses (Enero a Octubre). Noviembre y Diciembre libres."
+                >
+                  <span>🚗 10 primeros meses (Ene-Oct)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyMonthPreset('all')}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-medium border transition-all ${
+                    (!expenseForm.customMonthsEnabled || expenseForm.activeMonths?.length === 12)
+                      ? 'bg-white/20 text-white border-white/30 font-bold'
+                      : 'bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 border-white/10'
+                  }`}
+                >
+                  Todos (12/12)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyMonthPreset('10_sep_jun')}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-medium border transition-all ${
+                    JSON.stringify(expenseForm.activeMonths) === JSON.stringify([1, 2, 3, 4, 5, 6, 9, 10, 11, 12])
+                      ? 'bg-white/20 text-white border-white/30 font-bold'
+                      : 'bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 border-white/10'
+                  }`}
+                >
+                  Sep a Jun (Escolar)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyMonthPreset('semestral_jun_dic')}
+                  className="px-2.5 py-1 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 text-xs font-medium border border-white/10"
+                >
+                  Jun + Dic
+                </button>
+              </div>
+
+              {/* Grid 12 Botones de Meses */}
+              <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5 pt-1">
+                {MONTH_NAMES.map(m => {
+                  const isSelected = expenseForm.activeMonths?.includes(m.num);
+                  return (
+                    <button
+                      type="button"
+                      key={m.num}
+                      onClick={() => handleToggleMonthInForm(m.num)}
+                      title={`${m.fullName} (${isSelected ? 'Cobro activo' : 'Libre de cuota'})`}
+                      className={`py-2 px-1 rounded-xl text-xs font-extrabold text-center border transition-all touch-press ${
+                        isSelected
+                          ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md shadow-amber-400/20 scale-[1.02]'
+                          : 'bg-white/[0.03] text-slate-500 border-white/5 hover:bg-white/[0.08] hover:text-slate-300 opacity-40 line-through'
+                      }`}
+                    >
+                      {m.name}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {expenseForm.activeMonths?.length < 12 && (
+                <p className="text-[11px] text-amber-300/80 italic flex items-center gap-1">
+                  <span>ℹ️ En los meses libres ({MONTH_NAMES.filter(m => !expenseForm.activeMonths?.includes(m.num)).map(m => m.name).join(', ')}) no se emitirá recibo en el calendario ni se sumará al gasto mensual.</span>
+                </p>
+              )}
             </div>
 
             <div>
