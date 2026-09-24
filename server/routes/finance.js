@@ -490,4 +490,14 @@ router.delete('/shortcuts/gasto/:id', async (req, res) => {
   }
 });
 
+// PUT /api/finance/shortcuts/gasto/:id - Modificar gasto puntual en PostgreSQL y transacciones
+router.put('/shortcuts/gasto/:id', async (req, res) => {
+  try {
+    const result = await db.updatePunctualExpense(req.params.id, req.body);
+    res.json({ success: true, data: result, message: 'Gasto puntual modificado correctamente' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

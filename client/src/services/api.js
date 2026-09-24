@@ -419,6 +419,14 @@ export const api = {
     });
     return handleResponse(res);
   },
+  async updatePunctualExpense(id, payload) {
+    const res = await fetch(`${BASE_URL}/finance/shortcuts/gasto/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return handleResponse(res);
+  },
   getShortcutsWebhookUrl() {
     return `${window.location.origin}/api/finance/shortcuts/gasto`;
   }

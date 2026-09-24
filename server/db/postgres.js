@@ -289,6 +289,36 @@ class PostgresService {
     }
   }
 
+  async updatePunctualExpense(id, { titulo, importe, categoria, fecha, metodo_pago, notas }) {
+    if (!this.pool || !this.isConnected) return null;
+    try {
+      const res = await this.pool.query(
+        `UPDATE gastos_puntuales 
+         SET titulo = COALESCE($2, titulo),
+             importe = COALESCE($3, importe),
+             categoria = COALESCE($4, categoria),
+             fecha = COALESCE($5, fecha),
+             metodo_pago = COALESCE($6, metodo_pago),
+             notas = COALESCE($7, notas)
+         WHERE id = $1
+         RETURNING *`,
+        [
+          id,
+          titulo !== undefined ? titulo : null,
+          importe !== undefined ? (parseFloat(importe) || 0) : null,
+          categoria !== undefined ? categoria : null,
+          fecha !== undefined ? fecha : null,
+          metodo_pago !== undefined ? metodo_pago : null,
+          notas !== undefined ? notas : null
+        ]
+      );
+      return res.rows[0] || null;
+    } catch (err) {
+      console.error('[PostgreSQL updatePunctualExpense Error]', err);
+      throw err;
+    }
+  }
+
   // --- RELATIONAL FINANCE SYNC ---
   async syncRelationalData(finance) {
     if (!this.pool || !this.isConnected || !finance) return;

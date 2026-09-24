@@ -439,6 +439,7 @@ class Database {
 
   async getPunctualExpensesFromPg(limit = 100) {
     if (pgService.isConnected) {
+      await this.syncPunctualExpensesFromPg();
       return await pgService.getPunctualExpenses(limit);
     }
     // Fallback local
@@ -455,6 +456,81 @@ class Database {
         origen: t.source || 'manual',
         creado_en: t.createdAt
       }));
+  }
+
+  async updatePunctualExpense(id, updates = {}) {
+    const cleanTitle = (updates.titulo || updates.title || '').trim();
+    const rawAmount = updates.importe !== undefined ? updates.importe : updates.amount;
+    const cleanAmount = rawAmount !== undefined ? parseFloat(String(rawAmount).replace(',', '.')) : undefined;
+    const cleanCategory = updates.categoria || updates.category;
+    const cleanDate = updates.fecha || updates.date;
+    const cleanMethod = updates.metodo_pago || updates.paymentMethod;
+    const cleanNotes = updates.notas !== undefined ? updates.notas : updates.notes;
+
+    // 1. Actualizar en PostgreSQL si está conectado
+    let pgUpdated = null;
+    if (pgService.isConnected) {
+      try {
+        pgUpdated = await pgService.updatePunctualExpense(id, {
+          titulo: cleanTitle || undefined,
+          importe: !isNaN(cleanAmount) ? cleanAmount : undefined,
+          categoria: cleanCategory || undefined,
+          fecha: cleanDate || undefined,
+          metodo_pago: cleanMethod || undefined,
+          notas: cleanNotes !== undefined ? cleanNotes : undefined
+        });
+      } catch (err) {
+        console.error('[Database updatePunctualExpense PG Error]', err);
+      }
+    }
+
+    // 2. Actualizar en transacciones locales de finanzas
+    if (!this.data.finance) this.data.finance = {};
+    if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = [];
+    if (!this.data.finance.payments) this.data.finance.payments = {};
+
+    const txIndex = this.data.finance.transactions.findIndex(t => t.id === id);
+    if (txIndex !== -1) {
+      const tx = this.data.finance.transactions[txIndex];
+      const oldStartDate = tx.startDate;
+
+      if (cleanTitle) tx.title = cleanTitle;
+      if (!isNaN(cleanAmount)) tx.amount = cleanAmount;
+      if (cleanCategory) tx.category = cleanCategory;
+      if (cleanMethod) tx.paymentMethod = cleanMethod;
+      if (cleanNotes !== undefined) tx.notes = cleanNotes;
+      if (cleanDate) {
+        tx.startDate = cleanDate;
+        tx.endDate = cleanDate;
+        const parts = cleanDate.split('-');
+        tx.dayOfMonth = parseInt(parts[2], 10) || tx.dayOfMonth;
+        tx.monthOfYear = parseInt(parts[1], 10) || tx.monthOfYear;
+
+        if (oldStartDate) {
+          const oldParts = oldStartDate.split('-');
+          const oldMonthKey = `${oldParts[0]}-${oldParts[1]}`;
+          const newMonthKey = `${parts[0]}-${parts[1]}`;
+          if (oldMonthKey !== newMonthKey && this.data.finance.payments[oldMonthKey]?.[id]) {
+            const paymentRecord = this.data.finance.payments[oldMonthKey][id];
+            delete this.data.finance.payments[oldMonthKey][id];
+            if (!this.data.finance.payments[newMonthKey]) {
+              this.data.finance.payments[newMonthKey] = {};
+            }
+            this.data.finance.payments[newMonthKey][id] = {
+              ...paymentRecord,
+              date: cleanDate
+            };
+          }
+        }
+      }
+    }
+
+    this.save();
+    return {
+      success: true,
+      id,
+      data: pgUpdated || updates
+    };
   }
 
   async deletePunctualExpense(id) {
