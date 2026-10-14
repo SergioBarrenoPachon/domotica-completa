@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../Modal';
+import { notify } from '../feedback/feedback';
 
 const MONTH_NAMES = [
   { num: 1, name: 'Ene', full: 'Enero' },
@@ -247,7 +248,7 @@ export default function ContractsAndRulesManager({ api, currentMonth, onDataChan
   // Step rates handlers
   const handleAddStep = () => {
     if (!newStep.startDate || !newStep.amount) {
-      alert('Por favor indica al menos la fecha de inicio del tramo y el importe.');
+      notify.warning('Por favor indica al menos la fecha de inicio del tramo y el importe.');
       return;
     }
     const stepObj = {
@@ -277,7 +278,7 @@ export default function ContractsAndRulesManager({ api, currentMonth, onDataChan
   const handleSubmitForm = async (e) => {
     e.preventDefault();
     if (!formData.title || formData.amount === '') {
-      alert('Título e importe son obligatorios');
+      notify.warning('Título e importe son obligatorios');
       return;
     }
 
@@ -314,7 +315,7 @@ export default function ContractsAndRulesManager({ api, currentMonth, onDataChan
       if (onDataChanged) onDataChanged();
     } catch (err) {
       console.error('Error al guardar contrato/regla:', err);
-      alert('Error al guardar: ' + (err.message || 'Compruebe los datos'));
+      notify.error('Error al guardar: ' + (err.message || 'Compruebe los datos'));
     } finally {
       setSubmitting(false);
     }

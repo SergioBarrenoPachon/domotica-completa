@@ -21,6 +21,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import Modal from '../Modal';
+import { notify, confirmDialog } from '../feedback/feedback';
 
 const MONTH_NAMES = [
   { num: 1, name: 'Ene', fullName: 'Enero' },
@@ -250,7 +251,7 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
       loadExpenses();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error guardando gasto: ' + err.message);
+      notify.error('Error guardando gasto: ' + err.message);
     }
   };
 
@@ -296,19 +297,19 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
       loadExpenses();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error guardando periodo: ' + err.message);
+      notify.error('Error guardando periodo: ' + err.message);
     }
   };
 
   const handleDeletePeriod = async (expense, stepId) => {
-    if (!confirm('¿Eliminar este periodo de tarifa?')) return;
+    if (!(await confirmDialog({ title: 'Confirmar eliminación', message: '¿Eliminar este periodo de tarifa?', confirmText: 'Eliminar', danger: true }))) return;
     try {
       const updatedSteps = (expense.rateSteps || []).filter(s => s.id !== stepId);
       await api.updateFinanceTransaction(expense.id, { rateSteps: updatedSteps });
       loadExpenses();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error al eliminar periodo: ' + err.message);
+      notify.error('Error al eliminar periodo: ' + err.message);
     }
   };
 
@@ -323,13 +324,13 @@ export default function RecurringExpensesManager({ api, currentMonth, onDataChan
   };
 
   const handleDeleteExpense = async (id) => {
-    if (!confirm('¿Seguro que deseas eliminar este gasto periódico por completo?')) return;
+    if (!(await confirmDialog({ title: 'Confirmar eliminación', message: '¿Seguro que deseas eliminar este gasto periódico por completo?', confirmText: 'Eliminar', danger: true }))) return;
     try {
       await api.deleteFinanceTransaction(id);
       loadExpenses();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error al eliminar gasto: ' + err.message);
+      notify.error('Error al eliminar gasto: ' + err.message);
     }
   };
 

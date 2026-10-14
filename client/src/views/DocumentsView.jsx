@@ -15,6 +15,7 @@ import {
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import Modal from '../components/Modal';
+import { notify, confirmDialog } from '../components/feedback/feedback';
 
 function DocumentsView({ api, onRefreshDashboard }) {
   const [documents, setDocuments] = useState([]);
@@ -95,14 +96,14 @@ function DocumentsView({ api, onRefreshDashboard }) {
       loadDocuments();
       onRefreshDashboard();
     } catch (err) {
-      alert('Error subiendo documento');
+      notify.error('Error subiendo documento');
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('¿Eliminar este documento y su archivo digitalizado?')) {
+    if ((await confirmDialog({ title: 'Confirmar eliminación', message: '¿Eliminar este documento y su archivo digitalizado?', confirmText: 'Eliminar', danger: true }))) {
       try {
         await api.deleteDocument(id);
         setDocuments(documents.filter(d => d.id !== id));

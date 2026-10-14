@@ -10,6 +10,7 @@ import {
   Layers
 } from 'lucide-react';
 import Modal from '../Modal';
+import { notify, confirmDialog } from '../feedback/feedback';
 
 export default function CategoryManagerModal({
   isOpen,
@@ -77,20 +78,20 @@ export default function CategoryManagerModal({
       await loadCategories();
       if (onCategoriesChanged) onCategoriesChanged();
     } catch (err) {
-      alert('Error creando categoría: ' + err.message);
+      notify.error('Error creando categoría: ' + err.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id, catName) => {
-    if (!window.confirm(`¿Eliminar la categoría "${catName}"?`)) return;
+    if (!(await confirmDialog({ title: 'Confirmar eliminación', message: `¿Eliminar la categoría "${catName}"?`, confirmText: 'Eliminar', danger: true }))) return;
     try {
       await api.deleteFinanceCategory(id);
       await loadCategories();
       if (onCategoriesChanged) onCategoriesChanged();
     } catch (err) {
-      alert('Error eliminando categoría');
+      notify.error('Error eliminando categoría');
     }
   };
 

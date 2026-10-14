@@ -20,6 +20,7 @@ import {
   Trash2
 } from 'lucide-react';
 import Modal from '../Modal';
+import { notify } from '../feedback/feedback';
 
 export default function AdjustMonthModal({
   isOpen,
@@ -124,7 +125,7 @@ export default function AdjustMonthModal({
   const handleSaveFutureRule = async () => {
     const cleanAmount = parseSafeAmount(amount);
     if (isNaN(cleanAmount) || cleanAmount < 0) {
-      alert('Por favor introduce un importe válido (ej: 1585.98 o 1585,98)');
+      notify.warning('Por favor introduce un importe válido (ej: 1585.98 o 1585,98)');
       return;
     }
     setSaving(true);
@@ -154,7 +155,7 @@ export default function AdjustMonthModal({
       onSaved();
       onClose();
     } catch (err) {
-      alert('Error actualizando regla maestra: ' + (err.message || 'Error desconocido'));
+      notify.error('Error actualizando regla maestra: ' + (err.message || 'Error desconocido'));
     } finally {
       setSaving(false);
     }
@@ -165,7 +166,7 @@ export default function AdjustMonthModal({
     if (e) e.preventDefault();
     const cleanAmount = parseSafeAmount(amount);
     if (isNaN(cleanAmount) || cleanAmount < 0) {
-      alert('Por favor introduce un importe válido (ej: 1585.98 o 1585,98)');
+      notify.warning('Por favor introduce un importe válido (ej: 1585.98 o 1585,98)');
       return;
     }
     setSaving(true);
@@ -181,7 +182,7 @@ export default function AdjustMonthModal({
       onSaved();
       onClose();
     } catch (err) {
-      alert('Error guardando ajuste puntual: ' + (err.message || 'Error desconocido'));
+      notify.error('Error guardando ajuste puntual: ' + (err.message || 'Error desconocido'));
     } finally {
       setSaving(false);
     }
@@ -192,7 +193,7 @@ export default function AdjustMonthModal({
     if (e) e.preventDefault();
     const cleanAmount = parseSafeAmount(amount);
     if (isNaN(cleanAmount) || cleanAmount < 0) {
-      alert('Por favor introduce un importe válido (ej: 50.00 o 50,00)');
+      notify.warning('Por favor introduce un importe válido (ej: 50.00 o 50,00)');
       return;
     }
     setSaving(true);
@@ -211,7 +212,7 @@ export default function AdjustMonthModal({
       onSaved();
       onClose();
     } catch (err) {
-      alert('Error guardando movimiento puntual: ' + (err.message || 'Error desconocido'));
+      notify.error('Error guardando movimiento puntual: ' + (err.message || 'Error desconocido'));
     } finally {
       setSaving(false);
     }

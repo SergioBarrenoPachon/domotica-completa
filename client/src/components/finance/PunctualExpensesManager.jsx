@@ -22,6 +22,7 @@ import {
   Info
 } from 'lucide-react';
 import Modal from '../Modal';
+import { notify, confirmDialog } from '../feedback/feedback';
 
 export default function PunctualExpensesManager({ api, currentMonth, onDataChanged }) {
   const [expenses, setExpenses] = useState([]);
@@ -131,7 +132,7 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
       await loadPunctualExpenses();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error guardando gasto puntual: ' + err.message);
+      notify.error('Error guardando gasto puntual: ' + err.message);
     }
   };
 
@@ -167,12 +168,12 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
       await loadPunctualExpenses();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error actualizando gasto puntual: ' + err.message);
+      notify.error('Error actualizando gasto puntual: ' + err.message);
     }
   };
 
   const handleDeleteExpense = async (id) => {
-    if (!confirm('¿Eliminar este gasto puntual?')) return;
+    if (!(await confirmDialog({ title: 'Confirmar eliminación', message: '¿Eliminar este gasto puntual?', confirmText: 'Eliminar', danger: true }))) return;
     try {
       if (typeof id === 'string' && (id.startsWith('fin-') || id.startsWith('gasto-apple-'))) {
         await api.deleteFinanceTransaction(id);
@@ -183,7 +184,7 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
       await loadPunctualExpenses();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error: ' + err.message);
+      notify.error('Error: ' + err.message);
     }
   };
 

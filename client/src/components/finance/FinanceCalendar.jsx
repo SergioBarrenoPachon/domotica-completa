@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import { notify } from '../feedback/feedback';
 
 const FinanceYearView = React.lazy(() => import('./FinanceYearView'));
 
@@ -258,7 +259,7 @@ function FinanceCalendar({
         onOpenAddTx({ dayOfMonth: quickAddDay || selectedDay || 1 });
       }
     } catch (err) {
-      alert('Error creando concepto: ' + (err.message || 'Error desconocido'));
+      notify.error('Error creando concepto: ' + (err.message || 'Error desconocido'));
     } finally {
       setQuickSaving(false);
     }

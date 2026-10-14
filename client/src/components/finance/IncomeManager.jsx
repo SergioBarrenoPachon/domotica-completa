@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../Modal';
+import { notify, confirmDialog } from '../feedback/feedback';
 
 const MONTH_NAMES = [
   { num: 1, name: 'Enero (Mes 1)', short: 'Enero' },
@@ -236,7 +237,7 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
     try {
       const cleanAmount = parseFloat(String(incomeForm.amount).replace(',', '.'));
       if (isNaN(cleanAmount) || cleanAmount <= 0) {
-        alert('Por favor introduce un importe neto válido para la nómina');
+        notify.warning('Por favor introduce un importe neto válido para la nómina');
         return;
       }
 
@@ -273,7 +274,7 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
       if (onDataChanged) onDataChanged();
     } catch (err) {
       console.error('Error guardando nómina:', err);
-      alert('Error guardando nómina: ' + err.message);
+      notify.error('Error guardando nómina: ' + err.message);
     }
   };
 
@@ -315,19 +316,19 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
       loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error guardando tramo: ' + err.message);
+      notify.error('Error guardando tramo: ' + err.message);
     }
   };
 
   const handleDeleteTramo = async (income, stepId) => {
-    if (!confirm('¿Eliminar este tramo de sueldo?')) return;
+    if (!(await confirmDialog({ title: 'Confirmar eliminación', message: '¿Eliminar este tramo de sueldo?', confirmText: 'Eliminar', danger: true }))) return;
     try {
       const updatedSteps = (income.rateSteps || []).filter(s => s.id !== stepId);
       await api.updateFinanceTransaction(income.id, { rateSteps: updatedSteps });
       loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error al eliminar tramo: ' + err.message);
+      notify.error('Error al eliminar tramo: ' + err.message);
     }
   };
 
@@ -402,30 +403,30 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
       loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error guardando paga extra: ' + err.message);
+      notify.error('Error guardando paga extra: ' + err.message);
     }
   };
 
   const handleDeleteExtra = async (income, extraId) => {
-    if (!confirm('¿Eliminar esta paga extra programada?')) return;
+    if (!(await confirmDialog({ title: 'Confirmar eliminación', message: '¿Eliminar esta paga extra programada?', confirmText: 'Eliminar', danger: true }))) return;
     try {
       const updatedExtras = (income.extraPays || []).filter(x => x.id !== extraId);
       await api.updateFinanceTransaction(income.id, { extraPays: updatedExtras });
       loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error al eliminar paga extra: ' + err.message);
+      notify.error('Error al eliminar paga extra: ' + err.message);
     }
   };
 
   const handleDeleteIncome = async (id, title) => {
-    if (!confirm(`¿Eliminar la nómina o ingreso "${title}"?`)) return;
+    if (!(await confirmDialog({ title: 'Confirmar eliminación', message: `¿Eliminar la nómina o ingreso "${title}"?`, confirmText: 'Eliminar', danger: true }))) return;
     try {
       await api.deleteFinanceTransaction(id);
       loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error eliminando ingreso: ' + err.message);
+      notify.error('Error eliminando ingreso: ' + err.message);
     }
   };
 
@@ -466,7 +467,7 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
 
     const cleanAmt = parseFloat(String(punctualForm.amount).replace(',', '.'));
     if (isNaN(cleanAmt) || cleanAmt <= 0) {
-      alert('Introduce un importe válido para el ingreso puntual');
+      notify.warning('Introduce un importe válido para el ingreso puntual');
       return;
     }
 
@@ -505,18 +506,18 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
       await loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error guardando ingreso puntual: ' + err.message);
+      notify.error('Error guardando ingreso puntual: ' + err.message);
     }
   };
 
   const handleDeletePunctual = async (id, title) => {
-    if (!confirm(`¿Eliminar el registro de ingreso puntual "${title}"?`)) return;
+    if (!(await confirmDialog({ title: 'Confirmar eliminación', message: `¿Eliminar el registro de ingreso puntual "${title}"?`, confirmText: 'Eliminar', danger: true }))) return;
     try {
       await api.deleteFinanceTransaction(id);
       await loadIncomes();
       if (onDataChanged) onDataChanged();
     } catch (err) {
-      alert('Error eliminando ingreso: ' + err.message);
+      notify.error('Error eliminando ingreso: ' + err.message);
     }
   };
 
@@ -581,7 +582,7 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
       if (onDataChanged) onDataChanged();
     } catch (err) {
       console.error('Error actualizando concepto:', err);
-      alert('Error al gestionar concepto: ' + err.message);
+      notify.error('Error al gestionar concepto: ' + err.message);
     } finally {
       setIsUpdatingConcept(false);
     }
@@ -599,7 +600,7 @@ export default function IncomeManager({ api, currentMonth, onDataChanged }) {
       if (onDataChanged) onDataChanged();
     } catch (err) {
       console.error('Error redistribuyendo cobro:', err);
-      alert('Error: ' + err.message);
+      notify.error('Error: ' + err.message);
     }
   };
 

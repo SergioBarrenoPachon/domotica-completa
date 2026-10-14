@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../Modal';
+import { notify, confirmDialog } from '../feedback/feedback';
 
 export default function LoansManager({ api, onRefresh }) {
   const [loans, setLoans] = useState([]);
@@ -111,7 +112,7 @@ export default function LoansManager({ api, onRefresh }) {
 
     const isFamily = loanForm.type === 'familiar';
     if (!isFamily && !loanForm.monthlyPayment) {
-      alert('Por favor especifica la cuota mensual para este préstamo');
+      notify.warning('Por favor especifica la cuota mensual para este préstamo');
       return;
     }
 
@@ -148,7 +149,7 @@ export default function LoansManager({ api, onRefresh }) {
       await loadLoans();
       if (onRefresh) onRefresh();
     } catch (err) {
-      alert('Error creando préstamo: ' + err.message);
+      notify.error('Error creando préstamo: ' + err.message);
     }
   };
 
@@ -172,7 +173,7 @@ export default function LoansManager({ api, onRefresh }) {
       const res = await api.simulateLoanAmortization(simulateModal.id, simForm.extraAmount, simForm.mode);
       setSimulationResult(res);
     } catch (err) {
-      alert('Error en simulación: ' + err.message);
+      notify.error('Error en simulación: ' + err.message);
     }
   };
 
@@ -198,7 +199,7 @@ export default function LoansManager({ api, onRefresh }) {
   const handleRegisterRepayment = async (e) => {
     e.preventDefault();
     if (!repayModal || !repayForm.amount || Number(repayForm.amount) <= 0) {
-      alert('Introduce un importe válido a amortizar/devolver');
+      notify.warning('Introduce un importe válido a amortizar/devolver');
       return;
     }
 
@@ -214,18 +215,18 @@ export default function LoansManager({ api, onRefresh }) {
       await loadLoans();
       if (onRefresh) onRefresh();
     } catch (err) {
-      alert('Error registrando devolución: ' + err.message);
+      notify.error('Error registrando devolución: ' + err.message);
     }
   };
 
   const handleDeleteRepayment = async (loanId, repaymentId) => {
-    if (!confirm('¿Eliminar esta devolución registrada? Se reajustará el capital pendiente.')) return;
+    if (!(await confirmDialog({ title: 'Confirmar eliminación', message: '¿Eliminar esta devolución registrada? Se reajustará el capital pendiente.', confirmText: 'Eliminar', danger: true }))) return;
     try {
       await api.deleteLoanRepayment(loanId, repaymentId);
       await loadLoans();
       if (onRefresh) onRefresh();
     } catch (err) {
-      alert('Error eliminando devolución: ' + err.message);
+      notify.error('Error eliminando devolución: ' + err.message);
     }
   };
 
@@ -283,7 +284,7 @@ export default function LoansManager({ api, onRefresh }) {
       await loadLoans();
       if (onRefresh) onRefresh();
     } catch (err) {
-      alert('Error actualizando préstamo: ' + err.message);
+      notify.error('Error actualizando préstamo: ' + err.message);
     }
   };
 

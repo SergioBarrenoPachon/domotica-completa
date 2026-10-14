@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import Modal from '../components/Modal';
+import { notify } from '../components/feedback/feedback';
 
 function MealsView({ api, onRefreshDashboard }) {
   const [activeTab, setActiveTab] = useState('planner'); // 'planner' | 'pantry' | 'shopping'
@@ -91,7 +92,7 @@ function MealsView({ api, onRefreshDashboard }) {
       setTimeout(() => setSyncToast(null), 3500);
       onRefreshDashboard();
     } catch (err) {
-      alert('Error sugiriendo menú');
+      notify.error('Error sugiriendo menú');
     }
   };
 
@@ -108,7 +109,7 @@ function MealsView({ api, onRefreshDashboard }) {
       setEditDayModal(null);
       onRefreshDashboard();
     } catch (err) {
-      alert('Error guardando plato');
+      notify.error('Error guardando plato');
     }
   };
 
@@ -133,7 +134,7 @@ function MealsView({ api, onRefreshDashboard }) {
       setPantryForm({ name: '', zone: 'nevera', quantity: 1, unit: 'ud', minQuantity: 1, category: 'Lácteos' });
       onRefreshDashboard();
     } catch (err) {
-      alert('Error añadiendo alimento');
+      notify.error('Error añadiendo alimento');
     }
   };
 
@@ -174,7 +175,7 @@ function MealsView({ api, onRefreshDashboard }) {
       setTimeout(() => setSyncToast(null), 4000);
       onRefreshDashboard();
     } catch (err) {
-      alert('Error sincronizando lista');
+      notify.error('Error sincronizando lista');
     }
   };
 
@@ -198,7 +199,7 @@ function MealsView({ api, onRefreshDashboard }) {
       setShoppingForm({ name: '', category: 'Frescos', quantity: '1 ud', notes: '' });
       onRefreshDashboard();
     } catch (err) {
-      alert('Error añadiendo a la lista');
+      notify.error('Error añadiendo a la lista');
     }
   };
 

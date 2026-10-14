@@ -16,6 +16,7 @@ import {
   Euro
 } from 'lucide-react';
 import Modal from '../Modal';
+import { notify } from '../feedback/feedback';
 
 const PRESET_EVERYDAY = [
   { title: 'Supermercado & Compra', category: 'Alimentación', amount: '' },
@@ -226,7 +227,7 @@ export default function AddExpenseModal({
       setCustomGroupName('');
       setIsCustomGroup(false);
     } catch (err) {
-      alert('Error creando categoría: ' + err.message);
+      notify.error('Error creando categoría: ' + err.message);
     }
   };
 
@@ -270,7 +271,7 @@ export default function AddExpenseModal({
       onCreated();
       onClose();
     } catch (err) {
-      alert('Error guardando transacción: ' + err.message);
+      notify.error('Error guardando transacción: ' + err.message);
     } finally {
       setSaving(false);
     }

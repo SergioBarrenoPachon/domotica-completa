@@ -19,6 +19,7 @@ import {
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import Modal from '../Modal';
+import { notify } from '../feedback/feedback';
 
 export default function SavingsGoals({ api, onRefresh }) {
   const [goals, setGoals] = useState([]);
@@ -86,7 +87,7 @@ export default function SavingsGoals({ api, onRefresh }) {
       loadGoals();
       if (onRefresh) onRefresh();
     } catch (err) {
-      alert('Error creando meta: ' + err.message);
+      notify.error('Error creando meta: ' + err.message);
     }
   };
 
@@ -109,7 +110,7 @@ export default function SavingsGoals({ api, onRefresh }) {
       if (onRefresh) onRefresh();
       setContributeModal(null);
     } catch (err) {
-      alert('Error añadiendo aportación: ' + err.message);
+      notify.error('Error añadiendo aportación: ' + err.message);
     }
   };
 

@@ -17,6 +17,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import FinanceCalendar from '../components/finance/FinanceCalendar';
+import { notify } from '../components/feedback/feedback';
 
 const AddExpenseModal = React.lazy(() => import('../components/finance/AddExpenseModal'));
 const AdjustMonthModal = React.lazy(() => import('../components/finance/AdjustMonthModal'));
@@ -146,7 +147,7 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
       if (onRefreshDashboard) onRefreshDashboard();
     } catch (err) {
       console.error('Error al eliminar concepto:', err);
-      alert('Error al eliminar: ' + (err.message || 'Error desconocido'));
+      notify.error('Error al eliminar: ' + (err.message || 'Error desconocido'));
     }
   };
 

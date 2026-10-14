@@ -1,15 +1,44 @@
 const BASE_URL = '/api';
 
-async function handleResponse(response) {
-  if (!response.ok) {
-    let errorMsg = 'Error en la petición';
-    try {
-      const errData = await response.json();
-      errorMsg = errData.error || errorMsg;
-    } catch (_) {}
-    throw new Error(errorMsg);
+/**
+ * Envoltorio de fetch que convierte los fallos de red (servidor dormido, sin Wi-Fi...)
+ * en un error con mensaje legible en castellano en lugar del críptico "Failed to fetch".
+ * Se declara con el mismo nombre para que todas las llamadas del módulo lo usen.
+ */
+const fetch = async (...args) => {
+  try {
+    return await window.fetch(...args);
+  } catch (err) {
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    throw new Error(
+      offline
+        ? 'Sin conexión a Internet. Revisa tu red e inténtalo de nuevo.'
+        : 'No se pudo contactar con el servidor. Inténtalo de nuevo en unos segundos.'
+    );
   }
-  const json = await response.json();
+};
+
+async function parseJsonSafe(response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    // Respuestas HTML (p. ej. 502 de Render mientras arranca el servicio)
+    return { error: `Respuesta inesperada del servidor (${response.status})` };
+  }
+}
+
+async function readJson(response) {
+  const json = await parseJsonSafe(response);
+  if (!response.ok || json.success === false) {
+    throw new Error(json.error || `Error en la petición (${response.status})`);
+  }
+  return json;
+}
+
+async function handleResponse(response) {
+  const json = await readJson(response);
   return json.data;
 }
 
@@ -118,12 +147,17 @@ export const api = {
     });
     return handleResponse(res);
   },
+  async toggleShoppingItem(id, checked) {
+    return this.updateShoppingItem(id, { checked: Boolean(checked) });
+  },
   async syncShoppingList() {
     const res = await fetch(`${BASE_URL}/shopping/sync`, {
       method: 'POST'
     });
-    const json = await res.json();
-    return json;
+    return readJson(res);
+  },
+  async syncShoppingFromPantry() {
+    return this.syncShoppingList();
   },
 
   // FINANCE
@@ -362,8 +396,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ connectorType })
     });
-    const json = await res.json();
-    return json;
+    return readJson(res);
   },
 
   // DOCUMENTS & WARRANTIES

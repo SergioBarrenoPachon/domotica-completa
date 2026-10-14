@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Modal from './Modal';
 import { api } from '../services/api';
+import { notify, confirmDialog } from './feedback/feedback';
 
 export default function DatabaseStatusModal({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('database'); // 'database' | 'shortcuts'
@@ -80,7 +81,7 @@ export default function DatabaseStatusModal({ isOpen, onClose }) {
       setTimeout(() => setBackupSuccess(false), 4000);
       loadStatus();
     } catch (err) {
-      alert('Error creando respaldo: ' + err.message);
+      notify.error('Error creando respaldo: ' + err.message);
     } finally {
       setBackingUp(false);
     }
@@ -133,13 +134,13 @@ export default function DatabaseStatusModal({ isOpen, onClose }) {
   };
 
   const handleDeletePunctual = async (id) => {
-    if (!confirm('¿Deseas eliminar este gasto puntual de Neon PostgreSQL y de las finanzas?')) return;
+    if (!(await confirmDialog({ title: 'Confirmar eliminación', message: '¿Deseas eliminar este gasto puntual de Neon PostgreSQL y de las finanzas?', confirmText: 'Eliminar', danger: true }))) return;
     try {
       await api.deletePunctualExpense(id);
       loadPunctualExpenses();
       loadStatus();
     } catch (err) {
-      alert('Error al eliminar: ' + err.message);
+      notify.error('Error al eliminar: ' + err.message);
     }
   };
 

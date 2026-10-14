@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import Modal from '../components/Modal';
+import { notify } from '../components/feedback/feedback';
 
 function DomoticsView({ api, onRefreshDashboard }) {
   const [domoticsData, setDomoticsData] = useState(null);
@@ -125,7 +126,7 @@ function DomoticsView({ api, onRefreshDashboard }) {
       setTimeout(() => setSyncToast(null), 3500);
       onRefreshDashboard();
     } catch (err) {
-      alert('Error activando escena');
+      notify.error('Error activando escena');
     }
   };
 
@@ -143,7 +144,7 @@ function DomoticsView({ api, onRefreshDashboard }) {
       setTimeout(() => setSyncToast(null), 4000);
       onRefreshDashboard();
     } catch (err) {
-      alert('Error sincronizando dispositivos');
+      notify.error('Error sincronizando dispositivos');
     } finally {
       setIsSyncing(false);
     }
@@ -160,7 +161,7 @@ function DomoticsView({ api, onRefreshDashboard }) {
       setTimeout(() => setSyncToast(null), 3000);
       loadDomotics();
     } catch (err) {
-      alert('Error guardando configuración');
+      notify.error('Error guardando configuración');
     }
   };
 
