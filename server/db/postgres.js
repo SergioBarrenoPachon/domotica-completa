@@ -5,6 +5,13 @@ dotenv.config();
 
 const { Pool } = pg;
 
+function getLocalISODate(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 class PostgresService {
   constructor() {
     this.pool = null;
@@ -248,7 +255,7 @@ class PostgresService {
           titulo,
           parseFloat(importe) || 0,
           categoria || 'Gastos Puntuales',
-          fecha || new Date().toISOString().slice(0, 10),
+          fecha || getLocalISODate(),
           metodo_pago || 'Tarjeta',
           notas || '',
           origen || 'atajos_apple'
@@ -417,8 +424,8 @@ class PostgresService {
         for (const l of finance.loans) {
           const isFamily = Boolean(l.isFamilyLoan || l.type === 'familiar');
           const totalAmortized = parseFloat(l.totalAmortized || (l.repayments ? l.repayments.reduce((s, r) => s + (Number(r.amount) || 0), 0) : 0));
-          const currentBal = l.currentBalance !== undefined 
-            ? parseFloat(l.currentBalance) 
+          const currentBal = l.currentBalance !== undefined
+            ? parseFloat(l.currentBalance)
             : Math.max(0, (parseFloat(l.initialAmount) || 0) - totalAmortized);
 
           await client.query(

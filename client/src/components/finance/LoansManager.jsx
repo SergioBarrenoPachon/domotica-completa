@@ -26,6 +26,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Modal from '../Modal';
 import { notify, confirmDialog } from '../feedback/feedback';
 
+const parseSafeEuro = (val, fallback = 0) => {
+  if (val === undefined || val === null || val === '') return fallback;
+  if (typeof val === 'number') return isNaN(val) ? fallback : val;
+  const str = String(val).trim().replace(/\s+/g, '').replace('€', '').replace(',', '.');
+  const num = parseFloat(str);
+  return isNaN(num) ? fallback : num;
+};
+
 export default function LoansManager({ api, onRefresh }) {
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -120,13 +128,13 @@ export default function LoansManager({ api, onRefresh }) {
       await api.addLoan({
         ...loanForm,
         bank: isFamily ? (loanForm.bank || 'Padres / Familia') : loanForm.bank,
-        initialAmount: Number(loanForm.initialAmount),
-        currentBalance: Number(loanForm.currentBalance || loanForm.initialAmount),
-        interestRate: isFamily ? (Number(loanForm.interestRate) || 0) : Number(loanForm.interestRate),
-        monthlyPayment: isFamily ? (Number(loanForm.monthlyPayment) || 0) : Number(loanForm.monthlyPayment),
-        termYears: isFamily ? (Number(loanForm.termYears) || 0) : Number(loanForm.termYears),
+        initialAmount: parseSafeEuro(loanForm.initialAmount),
+        currentBalance: parseSafeEuro(loanForm.currentBalance || loanForm.initialAmount),
+        interestRate: isFamily ? 0 : parseSafeEuro(loanForm.interestRate),
+        monthlyPayment: isFamily ? 0 : parseSafeEuro(loanForm.monthlyPayment),
+        termYears: isFamily ? null : (Number(loanForm.termYears) || 0),
         autoCreateTransaction: isFamily ? false : loanForm.autoCreateTransaction,
-        propertyValue: loanForm.propertyValue ? Number(loanForm.propertyValue) : null
+        propertyValue: loanForm.propertyValue ? parseSafeEuro(loanForm.propertyValue) : null
       });
 
       setAddModal(false);
@@ -198,14 +206,15 @@ export default function LoansManager({ api, onRefresh }) {
 
   const handleRegisterRepayment = async (e) => {
     e.preventDefault();
-    if (!repayModal || !repayForm.amount || Number(repayForm.amount) <= 0) {
+    const cleanAmount = parseSafeEuro(repayForm.amount);
+    if (!repayModal || cleanAmount <= 0) {
       notify.warning('Introduce un importe válido a amortizar/devolver');
       return;
     }
 
     try {
       await api.addLoanRepayment(repayModal.id, {
-        amount: parseFloat(repayForm.amount),
+        amount: cleanAmount,
         date: repayForm.date,
         notes: repayForm.notes,
         registerExpense: repayForm.registerExpense
@@ -266,16 +275,16 @@ export default function LoansManager({ api, onRefresh }) {
         name: editForm.name.trim(),
         type: editForm.type,
         bank: isFamily ? (editForm.bank || 'Padres / Familia') : editForm.bank,
-        initialAmount: Number(editForm.initialAmount) || 0,
-        currentBalance: Number(editForm.currentBalance) || 0,
-        interestRate: isFamily ? 0 : (Number(editForm.interestRate) || 0),
+        initialAmount: parseSafeEuro(editForm.initialAmount),
+        currentBalance: parseSafeEuro(editForm.currentBalance),
+        interestRate: isFamily ? 0 : parseSafeEuro(editForm.interestRate),
         interestType: editForm.interestType,
-        monthlyPayment: isFamily ? (Number(editForm.monthlyPayment) || 0) : (Number(editForm.monthlyPayment) || 0),
+        monthlyPayment: isFamily ? 0 : parseSafeEuro(editForm.monthlyPayment),
         dayOfMonth: Number(editForm.dayOfMonth) || 1,
         startDate: editForm.startDate,
         endDate: editForm.endDate || null,
         termYears: isFamily ? null : (Number(editForm.termYears) || 0),
-        propertyValue: editForm.propertyValue ? Number(editForm.propertyValue) : null,
+        propertyValue: editForm.propertyValue ? parseSafeEuro(editForm.propertyValue) : null,
         notes: editForm.notes,
         isFamilyLoan: isFamily
       });
@@ -773,7 +782,7 @@ export default function LoansManager({ api, onRefresh }) {
                   <input
                     type="number"
                     value={simForm.extraAmount}
-                    onChange={(e) => setSimForm({ ...simForm, extraAmount: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setSimForm({ ...simForm, extraAmount: parseSafeEuro(e.target.value) })}
                     className="flex-1 glass-input rounded-2xl px-4 py-2 text-white font-mono text-base focus:border-amber-400 outline-none"
                     placeholder="5000"
                   />

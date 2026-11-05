@@ -26,6 +26,36 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
+export function parseEuroAmount(val, fallback = 0) {
+  if (val === undefined || val === null || val === '') return fallback;
+  if (typeof val === 'number') return isNaN(val) ? fallback : Math.round(val * 100) / 100;
+  let str = String(val).trim().replace('€', '').trim();
+  if (str.includes('.') && str.includes(',')) {
+    if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
+      str = str.replace(/\./g, '').replace(',', '.');
+    } else {
+      str = str.replace(/,/g, '');
+    }
+  } else if (str.includes(',')) {
+    str = str.replace(',', '.');
+  }
+  const num = parseFloat(str);
+  return isNaN(num) ? fallback : Math.round(num * 100) / 100;
+}
+
+export function getLocalISODate(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function getLocalMonthKey(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
 class Database {
   constructor() {
     this.data = null;
@@ -49,7 +79,7 @@ class Database {
 
       if (files.length > 25) {
         files.slice(25).forEach(oldFile => {
-          try { fs.unlinkSync(path.join(BACKUPS_DIR, oldFile)); } catch (_) {}
+          try { fs.unlinkSync(path.join(BACKUPS_DIR, oldFile)); } catch (_) { }
         });
       }
       return { success: true, file: backupFile, timestamp };
@@ -75,7 +105,7 @@ class Database {
           this.save();
           console.log(`[Database] Recuperada con éxito desde copia de seguridad: ${bFile}`);
           return true;
-        } catch (_) {}
+        } catch (_) { }
       }
     } catch (err) {
       console.error('Error recuperando respaldo:', err);
@@ -98,9 +128,9 @@ class Database {
       let linkedTx = this.data.finance.transactions.find(t => t.loanId === loan.id);
       if (!linkedTx) {
         // Buscar huérfana de hipoteca / préstamo
-        linkedTx = this.data.finance.transactions.find(t => 
-          (!t.loanId || t.loanId === 'null') && 
-          t.type === 'gasto' && 
+        linkedTx = this.data.finance.transactions.find(t =>
+          (!t.loanId || t.loanId === 'null') &&
+          t.type === 'gasto' &&
           (
             (loan.type === 'hipoteca' && (t.title?.toLowerCase().includes('hipoteca') || t.title?.toLowerCase().includes('préstamo') || t.title?.toLowerCase().includes('prestamo'))) ||
             (loan.name && t.title?.toLowerCase().includes(loan.name.toLowerCase()))
@@ -113,10 +143,10 @@ class Database {
 
       if (linkedTx) {
         // Sincronizar bidireccionalmente
-        if (loan.monthlyPayment !== undefined && Number(loan.monthlyPayment) > 0) {
-          linkedTx.amount = Number(loan.monthlyPayment);
-        } else if (Number(linkedTx.amount) > 0) {
-          loan.monthlyPayment = Number(linkedTx.amount);
+        if (loan.monthlyPayment !== undefined && parseEuroAmount(loan.monthlyPayment) > 0) {
+          linkedTx.amount = parseEuroAmount(loan.monthlyPayment);
+        } else if (parseEuroAmount(linkedTx.amount) > 0) {
+          loan.monthlyPayment = parseEuroAmount(linkedTx.amount);
         }
         if (loan.dayOfMonth !== undefined && Number(loan.dayOfMonth) > 0) {
           linkedTx.dayOfMonth = Number(loan.dayOfMonth);
@@ -127,17 +157,17 @@ class Database {
         linkedTx.title = cleanName;
         linkedTx.category = loan.type === 'hipoteca' ? 'Vivienda' : (loan.type === 'coche' ? 'Vehículo' : 'Préstamos');
         linkedTx.active = true;
-      } else if (Number(loan.monthlyPayment) > 0) {
+      } else if (parseEuroAmount(loan.monthlyPayment) > 0) {
         // Si no existe, crear la transacción para el calendario
         const newTx = {
           id: `fin-loan-${loan.id}`,
           title: loan.name.toLowerCase().startsWith('cuota') ? loan.name : `Cuota ${loan.name}`,
-          amount: Number(loan.monthlyPayment),
+          amount: parseEuroAmount(loan.monthlyPayment),
           type: 'gasto',
           category: loan.type === 'hipoteca' ? 'Vivienda' : (loan.type === 'coche' ? 'Vehículo' : 'Préstamos'),
           frequency: 'mensual',
           dayOfMonth: Number(loan.dayOfMonth) || 1,
-          startDate: loan.startDate ? (loan.startDate.length === 7 ? `${loan.startDate}-01` : loan.startDate) : new Date().toISOString().slice(0, 10),
+          startDate: loan.startDate ? (loan.startDate.length === 7 ? `${loan.startDate}-01` : loan.startDate) : getLocalISODate(),
           endDate: loan.endDate || null,
           loanId: loan.id,
           active: true,
@@ -157,7 +187,7 @@ class Database {
 
         const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
         this.data = JSON.parse(fileContent);
-        
+
         // Ensure finance subcollections exist
         if (!this.data.finance) this.data.finance = {};
         if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = initialSeedData.finance.transactions || [];
@@ -192,7 +222,7 @@ class Database {
         try {
           const corruptBackup = path.join(DATA_DIR, `domotica_db.corrupt-${Date.now()}.json`);
           if (fs.existsSync(DB_FILE)) fs.copyFileSync(DB_FILE, corruptBackup);
-        } catch (_) {}
+        } catch (_) { }
         this.data = JSON.parse(JSON.stringify(initialSeedData));
         this.save();
       }
@@ -212,7 +242,7 @@ class Database {
       if (pgState && typeof pgState === 'object') {
         console.log('[Database] Estado financiero y del hogar cargado exitosamente desde Neon PostgreSQL.');
         this.data = pgState;
-        
+
         // Garantizar subcolecciones
         if (!this.data.finance) this.data.finance = {};
         if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = initialSeedData.finance.transactions || [];
@@ -260,7 +290,7 @@ class Database {
       let changed = false;
       for (const row of rows) {
         const existing = this.data.finance.transactions.find(t => t.id === row.id);
-        const dateStr = typeof row.fecha === 'string' ? row.fecha.slice(0, 10) : new Date(row.fecha).toISOString().slice(0, 10);
+        const dateStr = typeof row.fecha === 'string' ? row.fecha.slice(0, 10) : (row.fecha ? getLocalISODate(new Date(row.fecha)) : getLocalISODate());
         const parts = dateStr.split('-');
         const day = parseInt(parts[2], 10) || 1;
         const monthNum = parseInt(parts[1], 10) || 1;
@@ -270,7 +300,7 @@ class Database {
           const newTx = {
             id: row.id,
             title: row.titulo,
-            amount: parseFloat(row.importe) || 0,
+            amount: parseEuroAmount(row.importe, 0),
             type: 'gasto',
             category: row.categoria || 'Gastos Puntuales',
             frequency: 'puntual',
@@ -304,7 +334,7 @@ class Database {
 
       if (changed) {
         this.saveLocalOnly();
-        pgService.saveFullState(this.data).catch(() => {});
+        pgService.saveFullState(this.data).catch(() => { });
       }
     } catch (err) {
       console.error('[Database syncPunctualExpensesFromPg Error]', err.message);
@@ -335,21 +365,18 @@ class Database {
     } = payload;
 
     const cleanTitle = (titulo || title || concepto || 'Gasto puntual').trim();
-    
+
     // Parseo numérico seguro (maneja comas decimales, símbolos €)
     let rawAmount = importe !== undefined ? importe : (amount !== undefined ? amount : precio);
-    if (typeof rawAmount === 'string') {
-      rawAmount = rawAmount.replace(/\s+/g, '').replace('€', '').replace(',', '.');
-    }
-    const cleanAmount = parseFloat(rawAmount);
-    if (isNaN(cleanAmount) || cleanAmount <= 0) {
+    const cleanAmount = parseEuroAmount(rawAmount, 0);
+    if (cleanAmount <= 0) {
       throw new Error('El importe debe ser un número válido mayor que 0.');
     }
 
     // Fecha en formato YYYY-MM-DD
     let cleanDate = fecha || date;
     if (!cleanDate || typeof cleanDate !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(cleanDate)) {
-      cleanDate = new Date().toISOString().slice(0, 10);
+      cleanDate = getLocalISODate();
     } else {
       cleanDate = cleanDate.slice(0, 10);
     }
@@ -461,7 +488,7 @@ class Database {
   async updatePunctualExpense(id, updates = {}) {
     const cleanTitle = (updates.titulo || updates.title || '').trim();
     const rawAmount = updates.importe !== undefined ? updates.importe : updates.amount;
-    const cleanAmount = rawAmount !== undefined ? parseFloat(String(rawAmount).replace(',', '.')) : undefined;
+    const cleanAmount = rawAmount !== undefined ? parseEuroAmount(rawAmount, NaN) : undefined;
     const cleanCategory = updates.categoria || updates.category;
     const cleanDate = updates.fecha || updates.date;
     const cleanMethod = updates.metodo_pago || updates.paymentMethod;
@@ -534,9 +561,6 @@ class Database {
   }
 
   async deletePunctualExpense(id) {
-    if (pgService.isConnected) {
-      await pgService.deletePunctualExpense(id);
-    }
     return this.deleteFinanceTransaction(id);
   }
 
@@ -545,7 +569,7 @@ class Database {
     if (fs.existsSync(DB_FILE)) {
       stats = fs.statSync(DB_FILE);
     }
-    const backupFiles = fs.existsSync(BACKUPS_DIR) 
+    const backupFiles = fs.existsSync(BACKUPS_DIR)
       ? fs.readdirSync(BACKUPS_DIR).filter(f => f.endsWith('.json'))
       : [];
 
@@ -553,8 +577,8 @@ class Database {
 
     return {
       status: pgStatus.connected ? 'healthy' : 'local_only',
-      storageType: pgStatus.connected 
-        ? 'Neon Serverless PostgreSQL (Nube) + Réplica Local' 
+      storageType: pgStatus.connected
+        ? 'Neon Serverless PostgreSQL (Nube) + Réplica Local'
         : 'Base de Datos Local en Disco (JSON DB Permanente)',
       dbFile: DB_FILE,
       sizeBytes: stats ? stats.size : 0,
@@ -608,7 +632,7 @@ class Database {
   // --- DASHBOARD & SUMMARY ---
   getDashboardSummary() {
     const today = new Date();
-    
+
     // Calculate document warranty alerts
     const docs = this.data.documents || [];
     let criticalWarranties = [];
@@ -836,8 +860,10 @@ class Database {
     const recipes = this.data.meals.recipes || [];
     const mealDays = this.data.meals.days || [];
     const existingShopping = this.data.shoppingList || [];
-    
+
     const addedItems = [];
+
+    const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     // 1. Check ingredients needed for the planned lunch/dinner recipes
     mealDays.forEach(day => {
@@ -846,13 +872,20 @@ class Database {
         const matchingRecipe = recipes.find(r => mealName.toLowerCase().includes(r.name.toLowerCase()) || r.name.toLowerCase().includes(mealName.toLowerCase()));
         if (matchingRecipe && matchingRecipe.ingredients) {
           matchingRecipe.ingredients.forEach(ing => {
-            const inPantry = pantry.find(p => p.name.toLowerCase().includes(ing.name.toLowerCase()) || ing.name.toLowerCase().includes(p.name.toLowerCase()));
+            const ingClean = (ing.name || '').trim().toLowerCase();
+            const inPantry = pantry.find(p => {
+              const pClean = (p.name || '').trim().toLowerCase();
+              if (pClean === ingClean) return true;
+              const re1 = new RegExp(`(^|\\s)${escapeRegex(ingClean)}($|\\s)`, 'i');
+              const re2 = new RegExp(`(^|\\s)${escapeRegex(pClean)}($|\\s)`, 'i');
+              return re1.test(pClean) || re2.test(ingClean);
+            });
             const isOutOfStock = !inPantry || inPantry.quantity <= 0;
-            const alreadyInShopping = existingShopping.some(s => s.name.toLowerCase() === ing.name.toLowerCase());
-            
-            if (isOutOfStock && !alreadyInShopping && !addedItems.some(a => a.name.toLowerCase() === ing.name.toLowerCase())) {
+            const alreadyInShopping = existingShopping.some(s => s.name.toLowerCase() === ingClean);
+
+            if (isOutOfStock && !alreadyInShopping && !addedItems.some(a => a.name.toLowerCase() === ingClean)) {
               const newItem = {
-                id: `shop-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                id: `shop-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
                 name: ing.name,
                 category: ing.zone === 'nevera' ? 'Frescos' : 'Despensa',
                 quantity: `${ing.amount} ${ing.unit}`,
@@ -871,10 +904,11 @@ class Database {
     // 2. Also check items below minQuantity in pantry
     pantry.forEach(p => {
       if (p.quantity <= (p.minQuantity || 0)) {
-        const alreadyInShopping = this.data.shoppingList.some(s => s.name.toLowerCase() === p.name.toLowerCase());
+        const pClean = (p.name || '').trim().toLowerCase();
+        const alreadyInShopping = this.data.shoppingList.some(s => s.name.toLowerCase() === pClean);
         if (!alreadyInShopping) {
           const newItem = {
-            id: `shop-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `shop-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             name: p.name,
             category: p.category || 'Despensa',
             quantity: `${Math.max(1, p.minQuantity - p.quantity)} ${p.unit}`,
@@ -938,7 +972,7 @@ class Database {
 
   addFinanceTransaction(tx) {
     let day = Number(tx.dayOfMonth);
-    const startDate = tx.startDate || new Date().toISOString().slice(0, 7);
+    const startDate = tx.startDate || getLocalMonthKey();
 
     // If dayOfMonth was not explicitly set but startDate is YYYY-MM-DD, extract day
     if ((!day || isNaN(day)) && startDate && startDate.length >= 10) {
@@ -960,7 +994,7 @@ class Database {
     const newTx = {
       id: `fin-${Date.now()}`,
       title: tx.title,
-      amount: Number(tx.amount) || 0,
+      amount: parseEuroAmount(tx.amount, 0),
       type: tx.type || 'gasto', // 'ingreso' | 'gasto'
       category: tx.category || 'General',
       frequency: tx.frequency || 'mensual', // 'mensual' | 'trimestral' | 'semestral' | 'anual' | 'puntual'
@@ -987,7 +1021,7 @@ class Database {
       if (!this.data.finance.payments[monthKey]) this.data.finance.payments[monthKey] = {};
       this.data.finance.payments[monthKey][newTx.id] = {
         paid: true,
-        date: startDate.length >= 10 ? startDate : new Date().toISOString().slice(0, 10)
+        date: startDate.length >= 10 ? startDate : getLocalISODate()
       };
     }
 
@@ -1004,27 +1038,10 @@ class Database {
   }
 
   updateFinanceTransaction(id, updates, mode = 'future') {
-    const parseSafe = (val, fallback = 0) => {
-      if (val === undefined || val === null || val === '') return fallback;
-      if (typeof val === 'number') return isNaN(val) ? fallback : val;
-      let str = String(val).trim();
-      if (str.includes('.') && str.includes(',')) {
-        if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
-          str = str.replace(/\./g, '').replace(',', '.');
-        } else {
-          str = str.replace(/,/g, '');
-        }
-      } else if (str.includes(',')) {
-        str = str.replace(',', '.');
-      }
-      const num = parseFloat(str);
-      return isNaN(num) ? fallback : num;
-    };
-
     const tx = (this.data.finance.transactions || []).find(t => t.id === id);
     if (tx) {
       if (updates.amount !== undefined) {
-        updates.amount = parseSafe(updates.amount, tx.amount);
+        updates.amount = parseEuroAmount(updates.amount, tx.amount);
       }
       if (updates.dayOfMonth !== undefined) {
         let d = parseInt(updates.dayOfMonth, 10);
@@ -1078,7 +1095,7 @@ class Database {
     const override = (this.data.finance.overrides || []).find(o => o.id === id || o.transactionId === id);
     if (override) {
       if (updates.amount !== undefined) {
-        override.amount = parseSafe(updates.amount, override.amount);
+        override.amount = parseEuroAmount(updates.amount, override.amount);
       }
       if (updates.title !== undefined) override.title = updates.title;
       if (updates.category !== undefined) override.category = updates.category;
@@ -1126,23 +1143,6 @@ class Database {
 
   createMonthOverride(txId, month, updates) {
     if (!this.data.finance.overrides) this.data.finance.overrides = [];
-    
-    const parseSafe = (val, fallback = 0) => {
-      if (val === undefined || val === null || val === '') return fallback;
-      if (typeof val === 'number') return isNaN(val) ? fallback : val;
-      let str = String(val).trim();
-      if (str.includes('.') && str.includes(',')) {
-        if (str.lastIndexOf('.') < str.lastIndexOf(',')) {
-          str = str.replace(/\./g, '').replace(',', '.');
-        } else {
-          str = str.replace(/,/g, '');
-        }
-      } else if (str.includes(',')) {
-        str = str.replace(',', '.');
-      }
-      const num = parseFloat(str);
-      return isNaN(num) ? fallback : num;
-    };
 
     const overrideById = (this.data.finance.overrides || []).find(o => o.id === txId);
     const realTxId = overrideById ? overrideById.transactionId : txId;
@@ -1157,7 +1157,7 @@ class Database {
       transactionId: realTxId,
       month: month,
       title: updates.title !== undefined ? updates.title : (existingOverride?.title || (tx ? tx.title : 'Modificación Puntual')),
-      amount: updates.amount !== undefined ? parseSafe(updates.amount, defaultAmt) : defaultAmt,
+      amount: updates.amount !== undefined ? parseEuroAmount(updates.amount, defaultAmt) : defaultAmt,
       dayOfMonth: updates.dayOfMonth !== undefined ? Number(updates.dayOfMonth) : (existingOverride?.dayOfMonth !== undefined ? existingOverride.dayOfMonth : (tx ? tx.dayOfMonth : 1)),
       category: updates.category !== undefined ? updates.category : (existingOverride?.category || (tx ? tx.category : 'General')),
       excluded: updates.excluded !== undefined ? Boolean(updates.excluded) : (existingOverride?.excluded || false),
@@ -1219,7 +1219,7 @@ class Database {
 
     // Clean up punctual expenses in PostgreSQL if present
     if (pgService.isConnected) {
-      pgService.deletePunctualExpense(targetTxId).catch(() => {});
+      pgService.deletePunctualExpense(targetTxId).catch(() => { });
     }
 
     this.save();
@@ -1232,7 +1232,7 @@ class Database {
 
     this.data.finance.payments[month][txId] = {
       paid: Boolean(paid),
-      date: paid ? new Date().toISOString().slice(0, 10) : null
+      date: paid ? getLocalISODate() : null
     };
 
     this.save();
@@ -1243,7 +1243,7 @@ class Database {
     const [yearStr, monthStr] = monthKey.split('-');
     const currentYear = parseInt(yearStr, 10);
     const currentMonthNumber = parseInt(monthStr, 10); // 1 - 12
-    
+
     // Calendar metadata
     const daysInMonth = new Date(currentYear, currentMonthNumber, 0).getDate();
     // In JavaScript: 0 = Sunday, 1 = Monday... We convert to Monday = 0 ... Sunday = 6 for standard European calendars
@@ -1742,16 +1742,16 @@ class Database {
       const isFamily = Boolean(loan.isFamilyLoan || loan.type === 'familiar');
       const repayments = Array.isArray(loan.repayments) ? loan.repayments : [];
       const totalAmortized = repayments.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-      
-      let currentBal = loan.currentBalance !== undefined 
-        ? Number(loan.currentBalance) 
+
+      let currentBal = loan.currentBalance !== undefined
+        ? Number(loan.currentBalance)
         : Math.max(0, (Number(loan.initialAmount) || 0) - totalAmortized);
-      
-      const remainingMonths = loan.endDate ? this.calculateMonthsBetween(new Date().toISOString().slice(0, 7), loan.endDate) : 0;
+
+      const remainingMonths = loan.endDate ? this.calculateMonthsBetween(getLocalMonthKey(), loan.endDate) : 0;
       const paidMonths = ((loan.termYears || 0) * 12) - Math.max(remainingMonths, 0);
       const totalPaidSoFar = (Number(loan.initialAmount) || 0) - currentBal;
-      const progress = loan.initialAmount > 0 
-        ? Math.min(100, Math.max(0, Math.round((totalPaidSoFar / loan.initialAmount) * 100))) 
+      const progress = loan.initialAmount > 0
+        ? Math.min(100, Math.max(0, Math.round((totalPaidSoFar / loan.initialAmount) * 100)))
         : 0;
 
       return {
@@ -1782,15 +1782,15 @@ class Database {
       type: loan.type || (isFamily ? 'familiar' : 'personal'),
       isFamilyLoan: isFamily,
       bank: loan.bank || (isFamily ? 'Padres / Familia' : ''),
-      initialAmount: Number(loan.initialAmount) || 0,
-      currentBalance: Number(loan.currentBalance !== undefined ? loan.currentBalance : loan.initialAmount) || 0,
-      interestRate: isFamily ? 0 : (Number(loan.interestRate) || 0),
+      initialAmount: parseEuroAmount(loan.initialAmount, 0),
+      currentBalance: parseEuroAmount(loan.currentBalance !== undefined ? loan.currentBalance : loan.initialAmount, 0),
+      interestRate: isFamily ? 0 : parseEuroAmount(loan.interestRate, 0),
       interestType: loan.interestType || 'fijo',
-      monthlyPayment: isFamily ? 0 : (Number(loan.monthlyPayment) || 0),
-      startDate: loan.startDate || new Date().toISOString().slice(0, 7),
+      monthlyPayment: isFamily ? 0 : parseEuroAmount(loan.monthlyPayment, 0),
+      startDate: loan.startDate || getLocalMonthKey(),
       endDate: isFamily ? null : (loan.endDate || null),
       termYears: isFamily ? null : (Number(loan.termYears) || 5),
-      propertyValue: loan.propertyValue ? Number(loan.propertyValue) : null,
+      propertyValue: loan.propertyValue ? parseEuroAmount(loan.propertyValue, 0) : null,
       notes: loan.notes || '',
       repayments: Array.isArray(loan.repayments) ? loan.repayments : [],
       status: loan.status || 'activo'
@@ -1822,9 +1822,9 @@ class Database {
   addLoanRepayment(loanId, { amount, date, notes, registerExpense = false }) {
     const loan = (this.data.finance.loans || []).find(l => l.id === loanId);
     if (!loan) throw new Error('Préstamo no encontrado');
-    const cleanAmount = parseFloat(amount);
-    if (isNaN(cleanAmount) || cleanAmount <= 0) throw new Error('El importe debe ser mayor a 0');
-    const cleanDate = date || new Date().toISOString().slice(0, 10);
+    const cleanAmount = parseEuroAmount(amount, 0);
+    if (cleanAmount <= 0) throw new Error('El importe debe ser mayor a 0');
+    const cleanDate = date || getLocalISODate();
 
     if (!Array.isArray(loan.repayments)) loan.repayments = [];
     const rep = {
@@ -1880,13 +1880,13 @@ class Database {
       if (updates.name !== undefined) loan.name = updates.name;
       if (updates.type !== undefined) loan.type = updates.type;
       if (updates.bank !== undefined) loan.bank = updates.bank;
-      if (updates.initialAmount !== undefined) loan.initialAmount = Number(updates.initialAmount);
-      if (updates.currentBalance !== undefined) loan.currentBalance = Number(updates.currentBalance);
-      if (updates.interestRate !== undefined) loan.interestRate = Number(updates.interestRate);
+      if (updates.initialAmount !== undefined) loan.initialAmount = parseEuroAmount(updates.initialAmount, loan.initialAmount);
+      if (updates.currentBalance !== undefined) loan.currentBalance = parseEuroAmount(updates.currentBalance, loan.currentBalance);
+      if (updates.interestRate !== undefined) loan.interestRate = parseEuroAmount(updates.interestRate, loan.interestRate);
       if (updates.interestType !== undefined) loan.interestType = updates.interestType;
-      if (updates.monthlyPayment !== undefined) loan.monthlyPayment = Number(updates.monthlyPayment);
+      if (updates.monthlyPayment !== undefined) loan.monthlyPayment = parseEuroAmount(updates.monthlyPayment, loan.monthlyPayment);
       if (updates.termYears !== undefined) loan.termYears = Number(updates.termYears);
-      if (updates.propertyValue !== undefined) loan.propertyValue = Number(updates.propertyValue);
+      if (updates.propertyValue !== undefined) loan.propertyValue = parseEuroAmount(updates.propertyValue, loan.propertyValue);
       if (updates.dayOfMonth !== undefined) loan.dayOfMonth = Number(updates.dayOfMonth) || 1;
       if (updates.startDate !== undefined) loan.startDate = updates.startDate;
       if (updates.endDate !== undefined) loan.endDate = updates.endDate || null;
@@ -1900,9 +1900,9 @@ class Database {
       // Sincronizar o vincular la transacción en el calendario
       let linkedTx = (this.data.finance.transactions || []).find(t => t.loanId === id);
       if (!linkedTx) {
-        linkedTx = (this.data.finance.transactions || []).find(t => 
-          (!t.loanId || t.loanId === 'null') && 
-          t.type === 'gasto' && 
+        linkedTx = (this.data.finance.transactions || []).find(t =>
+          (!t.loanId || t.loanId === 'null') &&
+          t.type === 'gasto' &&
           (t.title?.toLowerCase().includes('hipoteca') || t.title?.toLowerCase().includes('préstamo') || t.title?.toLowerCase().includes('prestamo'))
         );
         if (linkedTx) {
@@ -1914,7 +1914,7 @@ class Database {
         if (updates.name) {
           linkedTx.title = updates.name.toLowerCase().startsWith('cuota') ? updates.name : `Cuota ${updates.name}`;
         }
-        if (updates.monthlyPayment !== undefined) linkedTx.amount = Number(updates.monthlyPayment);
+        if (updates.monthlyPayment !== undefined) linkedTx.amount = parseEuroAmount(updates.monthlyPayment, linkedTx.amount);
         if (updates.dayOfMonth !== undefined) linkedTx.dayOfMonth = Number(updates.dayOfMonth) || 1;
         if (updates.startDate !== undefined) linkedTx.startDate = updates.startDate;
         if (updates.endDate !== undefined) linkedTx.endDate = updates.endDate || null;
@@ -1932,7 +1932,7 @@ class Database {
           category: loan.type === 'hipoteca' ? 'Vivienda' : (loan.type === 'coche' ? 'Vehículo' : 'Préstamos'),
           frequency: 'mensual',
           dayOfMonth: Number(loan.dayOfMonth) || 1,
-          startDate: loan.startDate || new Date().toISOString().slice(0, 7),
+          startDate: loan.startDate || getLocalMonthKey(),
           endDate: loan.endDate || null,
           loanId: loan.id,
           isIndefinite: !loan.endDate
@@ -1956,11 +1956,11 @@ class Database {
     const loan = (this.data.finance.loans || []).find(l => l.id === id);
     if (!loan) throw new Error('Préstamo no encontrado');
 
-    const principal = Number(loan.currentBalance);
-    const annualRate = Number(loan.interestRate) / 100;
+    const principal = parseEuroAmount(loan.currentBalance, 0);
+    const annualRate = parseEuroAmount(loan.interestRate, 0) / 100;
     const monthlyRate = annualRate / 12;
-    const currentPayment = Number(loan.monthlyPayment);
-    const extra = Number(extraAmount);
+    const currentPayment = parseEuroAmount(loan.monthlyPayment, 0);
+    const extra = parseEuroAmount(extraAmount, 0);
 
     if (extra <= 0 || extra >= principal) {
       throw new Error('El importe extraordinario debe ser mayor que 0 y menor que el capital pendiente');
@@ -1969,10 +1969,32 @@ class Database {
     const newPrincipal = principal - extra;
 
     if (mode === 'reduce_term') {
-      // Calculate remaining months with current payment on newPrincipal
+      if (currentPayment <= 0) {
+        throw new Error('El préstamo debe tener una cuota mensual mayor que 0 para simular la reducción de plazo');
+      }
+
       let monthsRemaining = 0;
       let balance = newPrincipal;
       let totalInterestNew = 0;
+
+      if (monthlyRate === 0) {
+        monthsRemaining = Math.ceil(newPrincipal / currentPayment);
+        const baseMonths = Math.ceil(principal / currentPayment);
+        const monthsSaved = Math.max(0, baseMonths - monthsRemaining);
+        return {
+          mode: 'reduce_term',
+          extraAmount: extra,
+          originalBalance: principal,
+          newBalance: newPrincipal,
+          currentMonthlyPayment: currentPayment,
+          newMonthlyPayment: currentPayment,
+          originalRemainingMonths: baseMonths,
+          newRemainingMonths: monthsRemaining,
+          monthsSaved,
+          yearsSaved: (monthsSaved / 12).toFixed(1),
+          interestSaved: 0
+        };
+      }
 
       while (balance > 0 && monthsRemaining < 600) {
         const interest = balance * monthlyRate;
@@ -2014,8 +2036,10 @@ class Database {
       };
     } else {
       // mode === 'reduce_payment' (reduces monthly payment keeping remaining term)
-      const remainingMonths = loan.endDate ? this.calculateMonthsBetween(new Date().toISOString().slice(0, 7), loan.endDate) : (loan.termYears * 12);
-      const n = Math.max(remainingMonths, 1);
+      const remainingMonths = loan.endDate
+        ? this.calculateMonthsBetween(getLocalMonthKey(), loan.endDate)
+        : ((Number(loan.termYears) || 5) * 12);
+      const n = Math.max(remainingMonths || 1, 1);
 
       const newMonthlyPayment = monthlyRate > 0
         ? (newPrincipal * (monthlyRate * Math.pow(1 + monthlyRate, n))) / (Math.pow(1 + monthlyRate, n) - 1)
@@ -2043,10 +2067,10 @@ class Database {
     return (this.data.finance.goals || []).map(goal => {
       const remainingAmount = Math.max(0, goal.targetAmount - goal.currentAmount);
       const progress = goal.targetAmount > 0 ? Math.min(100, Math.round((goal.currentAmount / goal.targetAmount) * 100)) : 0;
-      
+
       let monthsToDeadline = 12;
       if (goal.deadline) {
-        monthsToDeadline = Math.max(1, this.calculateMonthsBetween(new Date().toISOString().slice(0, 7), goal.deadline));
+        monthsToDeadline = Math.max(1, this.calculateMonthsBetween(getLocalMonthKey(), goal.deadline));
       }
       const suggestedMonthlySavings = Math.round((remainingAmount / monthsToDeadline) * 100) / 100;
 
@@ -2238,7 +2262,7 @@ class Database {
       category: doc.category || 'Garantías',
       issuer: doc.issuer || '',
       modelOrPolicy: doc.modelOrPolicy || '',
-      purchaseDate: doc.purchaseDate || new Date().toISOString().slice(0, 10),
+      purchaseDate: doc.purchaseDate || getLocalISODate(),
       warrantyExpiryDate: doc.warrantyExpiryDate || null,
       notes: doc.notes || '',
       fileUrl: doc.fileUrl || null,

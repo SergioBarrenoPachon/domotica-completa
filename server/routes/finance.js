@@ -1,5 +1,5 @@
 import express from 'express';
-import { db } from '../db/database.js';
+import { db, getLocalISODate, getLocalMonthKey } from '../db/database.js';
 
 const router = express.Router();
 
@@ -21,7 +21,7 @@ router.get('/year/:year', (req, res) => {
     const months = [];
     let annualIncome = 0;
     let annualExpenses = 0;
-    
+
     for (let m = 1; m <= 12; m++) {
       const monthStr = `${year}-${String(m).padStart(2, '0')}`;
       const summary = db.calculateMonthFinance(monthStr);
@@ -31,14 +31,14 @@ router.get('/year/:year', (req, res) => {
       // Extract highlights for this month (e.g. extra pays, annual bills, or notable transactions)
       const highlights = (summary.items || [])
         .filter(item => item.frequency === 'anual' || item.title?.toLowerCase().includes('extra') || item.title?.toLowerCase().includes('bonus') || item.frequency === 'semestral' || item.amount >= 500)
-        .map(i => ({ 
-          id: i.id, 
-          title: i.title, 
-          amount: i.amount, 
-          type: i.type, 
-          dayOfMonth: i.dayOfMonth, 
+        .map(i => ({
+          id: i.id,
+          title: i.title,
+          amount: i.amount,
+          type: i.type,
+          dayOfMonth: i.dayOfMonth,
           category: i.category,
-          paid: i.paid 
+          paid: i.paid
         }));
 
       months.push({
@@ -125,20 +125,20 @@ router.get('/transactions', (req, res) => {
 // POST /api/finance/transactions - Crear nueva transacción / ingreso / gasto recurrente o puntual
 router.post('/transactions', (req, res) => {
   try {
-    const { 
-      title, 
-      amount, 
-      type, 
-      category, 
-      frequency, 
-      dayOfMonth, 
-      monthOfYear, 
-      startDate, 
-      endDate, 
-      active, 
-      initialPaid, 
-      notes, 
-      yearlyIncreasePct, 
+    const {
+      title,
+      amount,
+      type,
+      category,
+      frequency,
+      dayOfMonth,
+      monthOfYear,
+      startDate,
+      endDate,
+      active,
+      initialPaid,
+      notes,
+      yearlyIncreasePct,
       isIndefinite,
       activeMonths,
       rateSteps,
@@ -147,20 +147,20 @@ router.post('/transactions', (req, res) => {
     if (!title || amount === undefined) {
       return res.status(400).json({ success: false, error: 'Título y monto son requeridos' });
     }
-    const newTx = db.addFinanceTransaction({ 
-      title, 
-      amount, 
-      type, 
-      category, 
-      frequency, 
-      dayOfMonth, 
-      monthOfYear, 
-      startDate, 
-      endDate, 
-      active, 
-      initialPaid, 
-      notes, 
-      yearlyIncreasePct, 
+    const newTx = db.addFinanceTransaction({
+      title,
+      amount,
+      type,
+      category,
+      frequency,
+      dayOfMonth,
+      monthOfYear,
+      startDate,
+      endDate,
+      active,
+      initialPaid,
+      notes,
+      yearlyIncreasePct,
       isIndefinite,
       activeMonths,
       rateSteps,
@@ -202,7 +202,7 @@ router.put('/transactions/:id', (req, res) => {
 router.put('/transactions/:id/move', (req, res) => {
   try {
     const { targetDay, month } = req.body;
-    const result = db.moveTransactionDay(req.params.id, targetDay, month || new Date().toISOString().slice(0, 7));
+    const result = db.moveTransactionDay(req.params.id, targetDay, month || getLocalMonthKey());
     if (!result.success) {
       return res.status(404).json(result);
     }
@@ -434,8 +434,8 @@ router.post('/shortcuts/gasto', async (req, res) => {
     res.status(201).json(result);
   } catch (error) {
     console.error('[Apple Shortcuts Error]', error.message);
-    res.status(400).json({ 
-      success: false, 
+    res.status(400).json({
+      success: false,
       error: error.message,
       speechFeedback: `Error: ${error.message}`
     });
@@ -449,7 +449,7 @@ router.get('/shortcuts/gasto', async (req, res) => {
       const result = await db.addPunctualExpenseShortcut(req.query);
       return res.status(201).json(result);
     }
-    
+
     // Instrucciones y formato
     res.json({
       endpoint: '/api/finance/shortcuts/gasto',
@@ -459,7 +459,7 @@ router.get('/shortcuts/gasto', async (req, res) => {
         titulo: 'Café / Compra Mercadona / Gasolina',
         importe: 14.50,
         categoria: 'Alimentación',
-        fecha: new Date().toISOString().slice(0, 10),
+        fecha: getLocalISODate(),
         metodo_pago: 'Apple Pay',
         notas: 'Registrado desde Atajos de iOS'
       }

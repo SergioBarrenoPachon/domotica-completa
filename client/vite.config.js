@@ -30,19 +30,25 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('recharts')) {
+            const normalizedId = id.replace(/\\/g, '/');
+            if (normalizedId.includes('/recharts/') || normalizedId.includes('/d3-')) {
               return 'vendor-charts';
             }
-            if (id.includes('framer-motion')) {
+            if (normalizedId.includes('/framer-motion/')) {
               return 'vendor-motion';
             }
-            if (id.includes('lucide-react')) {
+            if (normalizedId.includes('/lucide-react/')) {
               return 'vendor-icons';
             }
-            if (id.includes('canvas-confetti')) {
+            if (normalizedId.includes('/canvas-confetti/')) {
               return 'vendor-confetti';
             }
-            if (id.includes('react') || id.includes('react-dom')) {
+            if (
+              normalizedId.includes('/node_modules/react/') ||
+              normalizedId.includes('/node_modules/react-dom/') ||
+              normalizedId.includes('/node_modules/scheduler/') ||
+              normalizedId.includes('/node_modules/react-is/')
+            ) {
               return 'vendor-react';
             }
             return 'vendor-common';

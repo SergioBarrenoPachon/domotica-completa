@@ -239,7 +239,7 @@ function FinanceCalendar({
   // Quick Add submit for a day
   const handleQuickSubmit = async (e) => {
     if (e) e.preventDefault();
-    const cleanAmt = parseFloat(String(quickAmount).replace(',', '.'));
+    const cleanAmt = parseFloat(String(quickAmount).replace(/\s+/g, '').replace('€', '').replace(',', '.'));
     if (!quickTitle.trim() || isNaN(cleanAmt) || cleanAmt <= 0) return;
     setQuickSaving(true);
     try {

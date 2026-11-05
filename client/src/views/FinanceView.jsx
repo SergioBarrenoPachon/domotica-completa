@@ -166,9 +166,10 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
   const handleQuickAddTx = async ({ title, amount, type, dayOfMonth, frequency, category }) => {
     try {
       const isIncome = type === 'ingreso';
+      const cleanAmount = typeof amount === 'number' ? amount : parseFloat(String(amount).replace(/\s+/g, '').replace('€', '').replace(',', '.'));
       await api.addFinanceTransaction({
         title: title.trim(),
-        amount: parseFloat(amount),
+        amount: isNaN(cleanAmount) ? 0 : cleanAmount,
         type: isIncome ? 'ingreso' : 'gasto',
         category: category || (isIncome ? 'Nómina' : 'General'),
         frequency: frequency || 'puntual',

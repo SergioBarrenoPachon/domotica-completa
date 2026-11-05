@@ -236,6 +236,12 @@ export default function AddExpenseModal({
     e.preventDefault();
     if (!title.trim() || !amount) return;
 
+    const cleanAmount = typeof amount === 'number' ? amount : parseFloat(String(amount).replace(/\s+/g, '').replace('€', '').replace(',', '.'));
+    if (isNaN(cleanAmount) || cleanAmount <= 0) {
+      notify.error('Introduce un importe numérico válido mayor que 0');
+      return;
+    }
+
     setSaving(true);
     try {
       const isIncome = entryMode === 'income';
@@ -252,7 +258,7 @@ export default function AddExpenseModal({
 
       await api.addFinanceTransaction({
         title: title.trim(),
-        amount: parseFloat(amount),
+        amount: cleanAmount,
         type: isIncome ? 'ingreso' : 'gasto',
         category,
         frequency: isEveryday ? 'puntual' : frequency,

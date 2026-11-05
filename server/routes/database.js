@@ -20,10 +20,10 @@ router.post('/backup', (req, res) => {
     if (!backup) {
       return res.status(500).json({ success: false, error: 'No se pudo generar la copia de seguridad' });
     }
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: backup,
-      message: 'Copia de seguridad del sistema generada exitosamente en el disco' 
+      message: 'Copia de seguridad del sistema generada exitosamente en el disco'
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -31,14 +31,15 @@ router.post('/backup', (req, res) => {
 });
 
 // GET /api/database/export - Descargar fichero JSON completo de la base de datos
-router.get('/export', (req, res) => {
+router.get('/export', async (req, res) => {
   try {
-    const status = db.getDatabaseStatus();
+    const status = await db.getDatabaseStatus();
     if (!status.dbFile) {
       return res.status(404).json({ success: false, error: 'Fichero de base de datos no encontrado' });
     }
-    const timestamp = new Date().toISOString().slice(0, 10);
-    res.download(status.dbFile, `domotica-backup-${timestamp}.json`);
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    res.download(status.dbFile, `domotica-backup-${localDate}.json`);
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

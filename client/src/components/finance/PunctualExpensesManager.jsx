@@ -56,8 +56,6 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
     notes: ''
   });
 
-  const neonHttpUrl = 'https://ep-green-credit-b18kj1ct-pooler.c-5.eu-central-1.aws.neon.tech/sql';
-  const neonConnStr = 'postgresql://neondb_owner:npg_U9nEsomKA4YW@ep-green-credit-b18kj1ct-pooler.c-5.eu-central-1.aws.neon.tech/neondb?sslmode=require';
   const webhookUrl = api.getShortcutsWebhookUrl ? api.getShortcutsWebhookUrl() : `${window.location.origin}/api/finance/shortcuts/gasto`;
 
   useEffect(() => {
@@ -262,12 +260,12 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
           </span>
         </div>
 
-        {/* Automatismo Apple Shortcuts Card (Directo a Neon) */}
+        {/* Automatismo Apple Shortcuts Card */}
         <div className="md:col-span-2 p-5 rounded-3xl bg-gradient-to-r from-emerald-500/[0.08] via-blue-500/[0.08] to-purple-500/[0.08] border border-emerald-500/20 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5 font-display uppercase tracking-wider">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              Subida Directa a Neon PostgreSQL (100% Privado • Sin Render)
+              Atajos de Apple & Apple Pay (Sincronización en Neon)
             </span>
             <button
               onClick={() => setIsHelpModalOpen(true)}
@@ -278,21 +276,21 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
             </button>
           </div>
           <p className="text-xs text-slate-300">
-            Puedes configurar tu iPhone para que al pagar con Apple Pay suba el gasto directamente al endpoint HTTP de tu base de datos Neon:
+            Puedes configurar tu iPhone para que al pagar con Apple Pay o con Siri se registre el gasto de forma segura en tu sistema:
           </p>
           <div className="flex items-center gap-2 pt-1">
             <input
               type="text"
               readOnly
-              value={neonHttpUrl}
+              value={webhookUrl}
               className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-emerald-300 text-xs font-mono outline-none"
             />
             <button
-              onClick={() => copyToClipboard(neonHttpUrl, 'neon-url')}
+              onClick={() => copyToClipboard(webhookUrl, 'webhook-url')}
               className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center gap-1 transition-all"
             >
-              {copiedKey === 'neon-url' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedKey === 'neon-url' ? 'Copiado' : 'Copiar URL Neon'}</span>
+              {copiedKey === 'webhook-url' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedKey === 'webhook-url' ? 'Copiado' : 'Copiar Endpoint'}</span>
             </button>
           </div>
         </div>
@@ -648,15 +646,15 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
         <Modal
           isOpen={isHelpModalOpen}
           onClose={() => setIsHelpModalOpen(false)}
-          title="Atajo de Apple Pay directo a Neon PostgreSQL"
+          title="Configurar Atajo de Apple Pay"
         >
           <div className="space-y-4 text-xs text-slate-300 max-h-[75vh] overflow-y-auto pr-1">
             <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-start gap-2.5">
               <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-emerald-300">100% Directo a Neon • 0% en Render</p>
+                <p className="font-bold text-emerald-300">Sincronización Segura en Neon PostgreSQL</p>
                 <p className="text-[11px] text-slate-300 mt-0.5">
-                  Con esta configuración tu iPhone se comunicará <strong>directamente</strong> con los servidores de Neon PostgreSQL vía HTTPS. Tus datos bancarios y pagos nunca pasarán por el servidor de Render ni se almacenarán allí.
+                  Con esta configuración tu iPhone registrará el gasto puntual en la base de datos de Neon PostgreSQL de forma permanente y se reflejará al instante en el calendario y métricas del hogar.
                 </p>
               </div>
             </div>
@@ -687,15 +685,15 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
                   <input
                     type="text"
                     readOnly
-                    value={neonHttpUrl}
+                    value={webhookUrl}
                     className="flex-1 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-emerald-300 font-mono text-[11px] outline-none"
                   />
                   <button
                     type="button"
-                    onClick={() => copyToClipboard(neonHttpUrl, 'modal-neon-url')}
+                    onClick={() => copyToClipboard(webhookUrl, 'modal-webhook-url')}
                     className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] flex items-center gap-1"
                   >
-                    {copiedKey === 'modal-neon-url' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    {copiedKey === 'modal-webhook-url' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                     <span>Copiar</span>
                   </button>
                 </div>
@@ -706,24 +704,8 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
                 <span className="font-bold text-white block">Cabeceras (Headers):</span>
                 <div className="p-3 rounded-xl bg-black/30 border border-white/10 space-y-2">
                   <div>
-                    <span className="text-slate-400 text-[10px] block">Header 1: Content-Type</span>
+                    <span className="text-slate-400 text-[10px] block">Header: Content-Type</span>
                     <code className="text-amber-300 font-mono text-[11px]">application/json</code>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[10px]">Header 2: Neon-Connection-String</span>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(neonConnStr, 'modal-conn-str')}
-                        className="text-[10px] text-emerald-300 hover:underline flex items-center gap-1"
-                      >
-                        {copiedKey === 'modal-conn-str' ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
-                        <span>Copiar Cadena de Conexión</span>
-                      </button>
-                    </div>
-                    <code className="text-emerald-300 font-mono text-[10px] break-all block mt-0.5">
-                      {neonConnStr}
-                    </code>
                   </div>
                 </div>
               </div>
@@ -734,20 +716,23 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
                   <span className="font-bold text-white">Cuerpo de la Petición (JSON):</span>
                   <button
                     type="button"
-                    onClick={() => copyToClipboard(`{\n  "query": "INSERT INTO gastos_puntuales (id, titulo, importe, categoria, fecha, metodo_pago, notas, origen) VALUES ('gasto-apple-' || extract(epoch from now())::bigint, 'Compra Apple Pay', 15.50, 'Alimentación', CURRENT_DATE, 'Apple Pay', 'Directo a Neon', 'atajos_apple_neon_direct');"\n}`, 'modal-json-body')}
+                    onClick={() => copyToClipboard(`{\n  "titulo": "Compra Apple Pay",\n  "importe": 15.50,\n  "categoria": "Alimentación",\n  "metodo_pago": "Apple Pay"\n}`, 'modal-json-body')}
                     className="text-[10px] text-amber-300 hover:underline flex items-center gap-1"
                   >
                     {copiedKey === 'modal-json-body' ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
-                    <span>Copiar Ejemplo SQL JSON</span>
+                    <span>Copiar Ejemplo JSON</span>
                   </button>
                 </div>
                 <pre className="p-3 rounded-xl bg-black/40 border border-white/10 text-slate-300 font-mono text-[10px] overflow-x-auto whitespace-pre-wrap">
 {`{
-  "query": "INSERT INTO gastos_puntuales (id, titulo, importe, categoria, fecha, metodo_pago, notas, origen) VALUES ('gasto-apple-' || extract(epoch from now())::bigint, 'Compra Apple Pay', 15.50, 'Alimentación', CURRENT_DATE, 'Apple Pay', 'Directo a Neon', 'atajos_apple_neon_direct');"
+  "titulo": "Compra Apple Pay",
+  "importe": 15.50,
+  "categoria": "Alimentación",
+  "metodo_pago": "Apple Pay"
 }`}
                 </pre>
                 <p className="text-[10px] text-slate-400 mt-1">
-                  💡 <strong>Tip de Atajos:</strong> En el campo <code className="text-white">query</code> puedes reemplazar <code className="text-amber-300">'Compra Apple Pay'</code> y <code className="text-amber-300">15.50</code> por las variables nativas de la transacción de Apple Pay: <strong>"Comercio"</strong> e <strong>"Importe"</strong>.
+                  💡 <strong>Tip de Atajos:</strong> En los campos <code className="text-white">titulo</code> e <code className="text-white">importe</code> puedes seleccionar las variables automáticas de la transacción de Apple Pay en iOS: <strong>"Comercio"</strong> e <strong>"Importe"</strong>.
                 </p>
               </div>
             </div>
@@ -755,10 +740,10 @@ export default function PunctualExpensesManager({ api, currentMonth, onDataChang
             <div className="space-y-3 pt-2 border-t border-white/10">
               <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
                 <span className="w-5 h-5 rounded-full bg-blue-400 text-slate-950 font-black text-xs flex items-center justify-center">3</span>
-                Sincronización Automática con la Web
+                Sincronización Automática con la Web y Neon
               </h4>
               <p className="pl-6 text-slate-400">
-                En cuanto tu iPhone complete la compra y ejecute el atajo, el registro entrará inmediatamente a la tabla <code className="text-white font-mono">gastos_puntuales</code> de Neon. La web de domótica lo detectará y lo añadirá automáticamente al calendario y al cálculo del mes.
+                En cuanto tu iPhone complete la compra y ejecute el atajo, el registro entrará inmediatamente al sistema y se sincronizará de forma permanente tanto en local como en la nube con Neon PostgreSQL.
               </p>
             </div>
 
