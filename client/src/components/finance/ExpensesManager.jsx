@@ -1,23 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Layers,
-  Repeat,
-  Zap,
-  Calendar,
-  Plus,
-  Edit3,
-  Trash2,
-  Check,
-  Sparkles,
-  Search,
-  Smartphone,
-  Receipt,
-  CalendarRange,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  CreditCard,
-  Copy,
+import { 
+  Layers, 
+  Repeat, 
+  Zap, 
+  Calendar, 
+  Plus, 
+  Edit3, 
+  Trash2, 
+  Check, 
+  Sparkles, 
+  Search, 
+  Smartphone, 
+  Receipt, 
+  CalendarRange, 
+  ChevronDown, 
+  ChevronUp, 
+  Clock, 
+  CreditCard, 
+  Copy, 
   ExternalLink,
   ShieldCheck,
   Tag,
@@ -312,8 +312,8 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
       paymentMethod: 'Transferencia',
       date: getLocalISODate(),
       customMonthsEnabled: hasCustomMonths,
-      activeMonths: Array.isArray(exp.activeMonths) && exp.activeMonths.length > 0
-        ? exp.activeMonths
+      activeMonths: Array.isArray(exp.activeMonths) && exp.activeMonths.length > 0 
+        ? exp.activeMonths 
         : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     });
     setIsModalOpen(true);
@@ -432,7 +432,7 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
       }
       try {
         await api.deletePunctualExpense(id);
-      } catch (_) { }
+      } catch (_) {}
       notify.success('Gasto puntual eliminado');
       await loadAllExpenses();
       if (onDataChanged) onDataChanged();
@@ -631,7 +631,7 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
 
   return (
     <div className="space-y-6">
-
+      
       {/* 1. HEADER & SUB-TABS SELECTOR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -671,10 +671,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
         <div className="p-1 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center gap-1 shadow-inner-light whitespace-nowrap">
           <button
             onClick={() => setActiveTab('all')}
-            className={`min-h-[36px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${activeTab === 'all'
+            className={`min-h-[36px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
+              activeTab === 'all'
                 ? 'bg-rose-400 text-black shadow-md shadow-rose-400/25'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
-              }`}
+            }`}
           >
             <Layers className="w-4 h-4 stroke-[2.2]" />
             <span>Todos ({recurringExpenses.length + punctualExpenses.length})</span>
@@ -682,10 +683,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
 
           <button
             onClick={() => setActiveTab('recurring')}
-            className={`min-h-[36px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${activeTab === 'recurring'
+            className={`min-h-[36px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
+              activeTab === 'recurring'
                 ? 'bg-amber-400 text-black shadow-md shadow-amber-400/25'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
-              }`}
+            }`}
           >
             <Repeat className="w-4 h-4 stroke-[2.2]" />
             <span>Fijos / Recurrentes ({recurringExpenses.length})</span>
@@ -693,10 +695,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
 
           <button
             onClick={() => setActiveTab('punctual')}
-            className={`min-h-[36px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${activeTab === 'punctual'
+            className={`min-h-[36px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
+              activeTab === 'punctual'
                 ? 'bg-emerald-400 text-black shadow-md shadow-emerald-400/25'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
-              }`}
+            }`}
           >
             <Zap className="w-4 h-4 stroke-[2.2]" />
             <span>Puntuales & Día a Día ({punctualExpenses.length})</span>
@@ -704,10 +707,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
 
           <button
             onClick={() => setActiveTab('shortcuts')}
-            className={`min-h-[36px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${activeTab === 'shortcuts'
+            className={`min-h-[36px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
+              activeTab === 'shortcuts'
                 ? 'bg-blue-400 text-black shadow-md shadow-blue-400/25'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
-              }`}
+            }`}
           >
             <Smartphone className="w-4 h-4 stroke-[2.2]" />
             <span>📱 Atajos Apple & Siri</span>
@@ -779,10 +783,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
             <button
               type="button"
               onClick={() => setCategoryFilter('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${categoryFilter === 'all'
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                categoryFilter === 'all'
                   ? 'bg-rose-400 text-slate-950 font-black shadow-md shadow-rose-400/20'
                   : 'bg-white/[0.05] text-slate-300 hover:text-white border border-white/10'
-                }`}
+              }`}
             >
               Todas las categorías
             </button>
@@ -791,10 +796,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                 key={cat}
                 type="button"
                 onClick={() => setCategoryFilter(cat)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${categoryFilter === cat
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  categoryFilter === cat
                     ? 'bg-rose-400 text-slate-950 font-black shadow-md shadow-rose-400/20'
                     : 'bg-white/[0.05] text-slate-300 hover:text-white border border-white/10'
-                  }`}
+                }`}
               >
                 {cat}
               </button>
@@ -833,10 +839,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                       className="p-4 sm:p-4.5 rounded-3xl bg-white/[0.04] border border-white/10 hover:bg-white/[0.06] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 border ${isRecurring
-                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/25'
+                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 border ${
+                          isRecurring 
+                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/25' 
                             : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
-                          }`}>
+                        }`}>
                           {isRecurring ? <Repeat className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
                         </div>
                         <div className="space-y-0.5">
@@ -844,10 +851,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                             <span className="font-extrabold text-white text-sm sm:text-base font-display">
                               {item.displayTitle}
                             </span>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${isRecurring
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              isRecurring
                                 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                                 : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                              }`}>
+                            }`}>
                               {isRecurring ? 'Fijo / Recurrente' : 'Puntual / Ticket'}
                             </span>
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/[0.06] text-slate-300 border border-white/10">
@@ -940,10 +948,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                   return (
                     <div
                       key={exp.id}
-                      className={`p-4 sm:p-5 rounded-3xl border transition-all ${exp.active
-                          ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.06]'
+                      className={`p-4 sm:p-5 rounded-3xl border transition-all ${
+                        exp.active 
+                          ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.06]' 
                           : 'bg-white/[0.01] border-white/5 opacity-60'
-                        }`}
+                      }`}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="space-y-1">
@@ -1002,12 +1011,13 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                                   return (
                                     <span
                                       key={m.num}
-                                      className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-all ${isAct
+                                      className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-all ${
+                                        isAct
                                           ? isThisMonth
                                             ? 'bg-amber-400 text-slate-950 font-black shadow-sm ring-1 ring-amber-300'
                                             : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                                           : 'bg-white/[0.02] text-slate-600 line-through opacity-40'
-                                        }`}
+                                      }`}
                                     >
                                       {m.name}
                                     </span>
@@ -1033,10 +1043,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                           <button
                             type="button"
                             onClick={() => handleToggleActiveRecurring(exp.id)}
-                            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${exp.active
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                            className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
+                              exp.active 
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' 
                                 : 'bg-white/[0.05] text-slate-400 border-white/10 hover:text-white'
-                              }`}
+                            }`}
                           >
                             {exp.active ? 'Activo' : 'Pausado'}
                           </button>
@@ -1235,7 +1246,7 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-300">Cuerpo de la Solicitud (JSON)</label>
                   <pre className="p-3 rounded-2xl bg-slate-950/80 border border-white/10 text-emerald-400 font-mono text-xs overflow-x-auto">
-                    {`{
+{`{
   "titulo": "Mercadona / Café / Gasolina",
   "importe": 14.50,
   "categoria": "Alimentación",
@@ -1287,7 +1298,7 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
           title={modalMode === 'edit' ? `Editar ${expenseKind === 'recurring' ? 'Gasto Fijo' : 'Gasto Puntual'}` : 'Nuevo Gasto'}
         >
           <form onSubmit={handleSaveExpense} className="space-y-4">
-
+            
             {/* Si es creación, selector rápido del tipo de gasto */}
             {modalMode === 'create' && (
               <div>
@@ -1296,10 +1307,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                   <button
                     type="button"
                     onClick={() => setExpenseKind('recurring')}
-                    className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${expenseKind === 'recurring'
+                    className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                      expenseKind === 'recurring'
                         ? 'bg-rose-500 text-slate-950 font-black shadow-md'
                         : 'text-slate-300 hover:text-white'
-                      }`}
+                    }`}
                   >
                     <Repeat className="w-4 h-4" />
                     <span>Fijo / Recurrente</span>
@@ -1308,10 +1320,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                   <button
                     type="button"
                     onClick={() => setExpenseKind('punctual')}
-                    className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${expenseKind === 'punctual'
+                    className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                      expenseKind === 'punctual'
                         ? 'bg-emerald-400 text-slate-950 font-black shadow-md'
                         : 'text-slate-300 hover:text-white'
-                      }`}
+                    }`}
                   >
                     <Zap className="w-4 h-4" />
                     <span>Puntual / Ticket</span>
@@ -1433,8 +1446,9 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                       value={form.monthOfYear}
                       onChange={(e) => setForm({ ...form, monthOfYear: e.target.value })}
                       disabled={form.frequency === 'mensual'}
-                      className={`w-full glass-input rounded-2xl px-3.5 py-2.5 text-sm text-white focus:border-rose-400 outline-none ${form.frequency === 'mensual' ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
+                      className={`w-full glass-input rounded-2xl px-3.5 py-2.5 text-sm text-white focus:border-rose-400 outline-none ${
+                        form.frequency === 'mensual' ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                     >
                       {MONTH_NAMES.map(m => (
                         <option key={m.num} value={m.num} className="bg-slate-900 text-white">{m.fullName}</option>
@@ -1477,10 +1491,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                           key={m.num}
                           type="button"
                           onClick={() => handleToggleMonthInForm(m.num)}
-                          className={`py-1.5 rounded-xl text-xs font-bold transition-all ${isSel
+                          className={`py-1.5 rounded-xl text-xs font-bold transition-all ${
+                            isSel
                               ? 'bg-amber-400 text-slate-950 font-black shadow-sm'
                               : 'bg-white/[0.04] text-slate-500 hover:text-white'
-                            }`}
+                          }`}
                         >
                           {m.name}
                         </button>
@@ -1501,10 +1516,11 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
                       key={m}
                       type="button"
                       onClick={() => setForm({ ...form, paymentMethod: m })}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${form.paymentMethod === m
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                        form.paymentMethod === m
                           ? 'bg-emerald-500 text-slate-950 font-black border-emerald-400 shadow-md'
                           : 'bg-white/[0.05] text-slate-300 border-white/10 hover:text-white'
-                        }`}
+                      }`}
                     >
                       {m}
                     </button>
