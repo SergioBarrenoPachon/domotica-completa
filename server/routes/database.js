@@ -20,10 +20,10 @@ router.post('/backup', (req, res) => {
     if (!backup) {
       return res.status(500).json({ success: false, error: 'No se pudo generar la copia de seguridad' });
     }
-    res.json({
-      success: true,
+    res.json({ 
+      success: true, 
       data: backup,
-      message: 'Copia de seguridad del sistema generada exitosamente en el disco'
+      message: 'Copia de seguridad del sistema generada exitosamente en el disco' 
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
