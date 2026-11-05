@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Landmark, 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
-  Calendar as CalendarIcon, 
+import {
+  Landmark,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Calendar as CalendarIcon,
   Wallet,
   Layers,
   Sparkles,
@@ -22,8 +22,7 @@ import { notify } from '../components/feedback/feedback';
 const AddExpenseModal = React.lazy(() => import('../components/finance/AddExpenseModal'));
 const AdjustMonthModal = React.lazy(() => import('../components/finance/AdjustMonthModal'));
 const IncomeManager = React.lazy(() => import('../components/finance/IncomeManager'));
-const RecurringExpensesManager = React.lazy(() => import('../components/finance/RecurringExpensesManager'));
-const PunctualExpensesManager = React.lazy(() => import('../components/finance/PunctualExpensesManager'));
+const ExpensesManager = React.lazy(() => import('../components/finance/ExpensesManager'));
 const LoansManager = React.lazy(() => import('../components/finance/LoansManager'));
 
 function FinanceView({ api, onRefreshDashboard, refreshKey }) {
@@ -36,7 +35,7 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
   const [monthData, setMonthData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Active View Tab: 'calendar' | 'incomes' | 'recurring' | 'punctual' | 'loans'
+  // Active View Tab: 'calendar' | 'incomes' | 'expenses' | 'loans'
   const [activeTab, setActiveTab] = useState('calendar');
   const [calendarFilter, setCalendarFilter] = useState('all');
 
@@ -223,7 +222,7 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
 
   return (
     <div className="space-y-6 pb-28">
-      
+
       {/* 1. HEADER CON NAVEGADOR DE MES */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -234,7 +233,7 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
             Economía & Tesorería
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Gestión separada de ingresos, gastos periódicos por tramos, gastos puntuales y préstamos/hipotecas.
+            Gestión separada de ingresos, gastos fijos y puntuales en un solo lugar, y préstamos/hipotecas.
           </p>
         </div>
 
@@ -284,17 +283,16 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
         </div>
       </div>
 
-      {/* 2. SELECTOR DE 5 PESTAÑAS ORGANIZADAS */}
+      {/* 2. SELECTOR DE 4 PESTAÑAS PRINCIPALES */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
         <div className="p-1 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center gap-1 shadow-inner-light whitespace-nowrap">
           {/* Pestaña 1: Calendario & Tesorería */}
           <button
             onClick={() => setActiveTab('calendar')}
-            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
-              activeTab === 'calendar'
+            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${activeTab === 'calendar'
                 ? 'bg-amber-400 text-black shadow-md shadow-amber-400/25'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
-            }`}
+              }`}
           >
             <CalendarIcon className="w-4 h-4 stroke-[2.2]" />
             <span>Calendario & Previsión</span>
@@ -303,50 +301,35 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
           {/* Pestaña 2: Ingresos & Nóminas */}
           <button
             onClick={() => setActiveTab('incomes')}
-            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
-              activeTab === 'incomes'
+            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${activeTab === 'incomes'
                 ? 'bg-emerald-400 text-black shadow-md shadow-emerald-400/25'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
-            }`}
+              }`}
           >
             <TrendingUp className="w-4 h-4 stroke-[2.2]" />
             <span>Ingresos & Nóminas</span>
           </button>
 
-          {/* Pestaña 3: Gastos Periódicos */}
+          {/* Pestaña 3: Gastos (Unificado: Fijos, Variables, Puntuales y Atajos) */}
           <button
-            onClick={() => setActiveTab('recurring')}
+            onClick={() => setActiveTab('expenses')}
             className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
-              activeTab === 'recurring'
+              activeTab === 'expenses' || activeTab === 'recurring' || activeTab === 'punctual'
                 ? 'bg-rose-400 text-black shadow-md shadow-rose-400/25'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
-            }`}
+              }`}
           >
-            <Repeat className="w-4 h-4 stroke-[2.2]" />
-            <span>Gastos Periódicos</span>
+            <Layers className="w-4 h-4 stroke-[2.2]" />
+            <span>Gastos</span>
           </button>
 
-          {/* Pestaña 4: Gastos Puntuales */}
-          <button
-            onClick={() => setActiveTab('punctual')}
-            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
-              activeTab === 'punctual'
-                ? 'bg-amber-400 text-black shadow-md shadow-amber-400/25'
-                : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
-            }`}
-          >
-            <Zap className="w-4 h-4 stroke-[2.2]" />
-            <span>Gastos Puntuales & Atajos</span>
-          </button>
-
-          {/* Pestaña 5: Préstamos e Hipotecas */}
+          {/* Pestaña 4: Préstamos e Hipotecas */}
           <button
             onClick={() => setActiveTab('loans')}
-            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${
-              activeTab === 'loans'
+            className={`min-h-[38px] px-3.5 sm:px-4 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 transition-all touch-press ${activeTab === 'loans'
                 ? 'bg-purple-400 text-black shadow-md shadow-purple-400/25'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
-            }`}
+              }`}
           >
             <Landmark className="w-4 h-4 stroke-[2.2]" />
             <span>Préstamos & Hipotecas</span>
@@ -361,7 +344,7 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
           <div className="glass-ios p-5 sm:p-7 rounded-[32px] sm:rounded-[36px] border border-white/14 shadow-ambient space-y-4 sm:space-y-5 relative overflow-hidden">
             {/* Luz difusa ambiental ámbar iOS */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/8 rounded-full blur-3xl pointer-events-none" />
-            
+
             {/* Saldo Disponible Hoy */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10 relative z-10">
               <div>
@@ -370,9 +353,8 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
                   Dinero Disponible Hoy en Cuenta
                 </span>
                 <div className="flex items-baseline gap-3 mt-1.5">
-                  <span className={`text-3xl sm:text-4xl md:text-5xl font-black font-mono tracking-tight ${
-                    currentAvailableMoney >= 0 ? 'text-emerald-300 drop-shadow-[0_2px_12px_rgba(48,209,88,0.25)]' : 'text-rose-400 drop-shadow-[0_2px_12px_rgba(255,69,58,0.25)]'
-                  }`}>
+                  <span className={`text-3xl sm:text-4xl md:text-5xl font-black font-mono tracking-tight ${currentAvailableMoney >= 0 ? 'text-emerald-300 drop-shadow-[0_2px_12px_rgba(48,209,88,0.25)]' : 'text-rose-400 drop-shadow-[0_2px_12px_rgba(255,69,58,0.25)]'
+                    }`}>
                     {currentAvailableMoney >= 0 ? `+${formatMoney(currentAvailableMoney)}€` : `${formatMoney(currentAvailableMoney)}€`}
                   </span>
                   <span className="text-xs text-slate-400 font-medium">
@@ -382,11 +364,10 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                  pendingExpensesCount === 0
+                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${pendingExpensesCount === 0
                     ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
                     : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                }`}>
+                  }`}>
                   {pendingExpensesCount === 0 ? '✓ Recibos al día' : `⏳ ${pendingExpensesCount} por pagar`}
                 </span>
               </div>
@@ -422,9 +403,8 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
                 <span className="text-[10.5px] font-bold text-cyan-400 uppercase tracking-wider block font-display">
                   🏁 Previsión Fin de Mes
                 </span>
-                <p className={`text-xl sm:text-2xl font-black font-mono mt-1 ${
-                  projectedBalance >= 0 ? 'text-cyan-300' : 'text-rose-400'
-                }`}>
+                <p className={`text-xl sm:text-2xl font-black font-mono mt-1 ${projectedBalance >= 0 ? 'text-cyan-300' : 'text-rose-400'
+                  }`}>
                   {projectedBalance >= 0 ? `+${formatMoney(projectedBalance)}€` : `${formatMoney(projectedBalance)}€`}
                 </p>
                 <span className="text-[10.5px] text-slate-400 mt-0.5 block">
@@ -490,36 +470,18 @@ function FinanceView({ api, onRefreshDashboard, refreshKey }) {
         </React.Suspense>
       )}
 
-      {/* PESTAÑA 3: GASTOS PERIÓDICOS */}
-      {activeTab === 'recurring' && (
+      {/* PESTAÑA 3: GASTOS (UNIFICADO: RECURRENTES, PUNTUALES Y ATAJOS) */}
+      {(activeTab === 'expenses' || activeTab === 'recurring' || activeTab === 'punctual') && (
         <React.Suspense fallback={
           <div className="glass-ios p-12 text-center text-slate-400 space-y-3 rounded-3xl animate-pulse">
-            <Repeat className="w-8 h-8 animate-spin mx-auto text-rose-400" />
-            <p className="font-bold text-white text-base">Cargando gastos periódicos y tramos...</p>
+            <Layers className="w-8 h-8 animate-spin mx-auto text-rose-400" />
+            <p className="font-bold text-white text-base">Cargando gestor integral de gastos...</p>
           </div>
         }>
-          <RecurringExpensesManager
+          <ExpensesManager
             api={api}
             currentMonth={currentMonth}
-            onDataChanged={() => {
-              loadMonthData(currentMonth);
-              if (onRefreshDashboard) onRefreshDashboard();
-            }}
-          />
-        </React.Suspense>
-      )}
-
-      {/* PESTAÑA 4: GASTOS PUNTUALES & ATAJOS */}
-      {activeTab === 'punctual' && (
-        <React.Suspense fallback={
-          <div className="glass-ios p-12 text-center text-slate-400 space-y-3 rounded-3xl animate-pulse">
-            <Zap className="w-8 h-8 animate-spin mx-auto text-amber-400" />
-            <p className="font-bold text-white text-base">Cargando gastos puntuales...</p>
-          </div>
-        }>
-          <PunctualExpensesManager
-            api={api}
-            currentMonth={currentMonth}
+            initialSubTab={activeTab === 'punctual' ? 'punctual' : (activeTab === 'recurring' ? 'recurring' : 'all')}
             onDataChanged={() => {
               loadMonthData(currentMonth);
               if (onRefreshDashboard) onRefreshDashboard();
