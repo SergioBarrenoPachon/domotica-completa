@@ -56,6 +56,73 @@ export function getLocalMonthKey(d = new Date()) {
   return `${y}-${m}`;
 }
 
+export function getLastBusinessDay(year, month) {
+  const y = parseInt(year, 10);
+  const m = parseInt(month, 10);
+  const lastDayObj = new Date(y, m, 0);
+  let d = lastDayObj.getDate();
+  const dayOfWeek = lastDayObj.getDay(); // 0 = Sunday, 6 = Saturday
+  if (dayOfWeek === 0) {
+    d -= 2; // Domingo -> Viernes
+  } else if (dayOfWeek === 6) {
+    d -= 1; // Sábado -> Viernes
+  }
+  return d;
+}
+
+export const DEFAULT_ACCOUNTS = [
+  {
+    id: 'acc-sabadell',
+    name: 'Banco Sabadell',
+    bank: 'Sabadell',
+    type: 'corriente',
+    tag: 'Nómina & Hipoteca',
+    iban: 'ES91 0081 •••• 4521',
+    color: '#0084C9',
+    bgGradient: 'from-[#002B49] via-[#004B7A] to-[#0A1A2F]',
+    borderGlow: 'border-sky-400/40',
+    icon: 'Landmark',
+    balance: 4250.00,
+    isDefault: true,
+    cards: [
+      { id: 'card-sab-deb', name: 'Tarjeta Débito Sabadell', last4: '4521', type: 'debito', isApplePay: true }
+    ]
+  },
+  {
+    id: 'acc-revolut',
+    name: 'Revolut',
+    bank: 'Revolut',
+    type: 'dia_a_dia',
+    tag: 'Gastos Día a Día & Apple Pay',
+    iban: 'ES21 1583 •••• 9812',
+    color: '#1969FF',
+    bgGradient: 'from-[#192A56] via-[#1E3799] to-[#0C1427]',
+    borderGlow: 'border-blue-400/40',
+    icon: 'CreditCard',
+    balance: 1120.45,
+    isDefault: false,
+    cards: [
+      { id: 'card-rev-apple', name: 'Apple Pay Revolut', last4: '9812', type: 'virtual', isApplePay: true },
+      { id: 'card-rev-deb', name: 'Tarjeta Metal Revolut', last4: '3341', type: 'debito', isApplePay: false }
+    ]
+  },
+  {
+    id: 'acc-ahorro',
+    name: 'Cuenta Ahorro & Emergencia',
+    bank: 'Trade Republic / Ahorro',
+    type: 'ahorro',
+    tag: 'Fondo Emergencia (3.75% TAE)',
+    iban: 'ES45 0182 •••• 7710',
+    color: '#10B981',
+    bgGradient: 'from-[#064E3B] via-[#047857] to-[#06281E]',
+    borderGlow: 'border-emerald-400/40',
+    icon: 'ShieldCheck',
+    balance: 15400.00,
+    isDefault: false,
+    cards: []
+  }
+];
+
 class Database {
   constructor() {
     this.data = null;
@@ -124,6 +191,14 @@ class Database {
         return; // Los préstamos familiares sin cuota periódica no requieren transacción mensual
       }
 
+      // Si es hipoteca bancaria, configurar Sabadell, último día hábil y carencia inicial
+      if (loan.type === 'hipoteca') {
+        loan.bank = loan.bank || 'Sabadell';
+        loan.isLastBusinessDay = true;
+        loan.firstPaymentInterestOnly = true;
+        loan.accountId = 'acc-sabadell';
+      }
+
       // Buscar transacción vinculada
       let linkedTx = this.data.finance.transactions.find(t => t.loanId === loan.id);
       if (!linkedTx) {
@@ -148,6 +223,13 @@ class Database {
         } else if (parseEuroAmount(linkedTx.amount) > 0) {
           loan.monthlyPayment = parseEuroAmount(linkedTx.amount);
         }
+        if (loan.isLastBusinessDay) {
+          linkedTx.isLastBusinessDay = true;
+        }
+        if (loan.bank) {
+          linkedTx.bank = loan.bank;
+          linkedTx.accountId = loan.accountId || (loan.bank.toLowerCase().includes('sabadell') ? 'acc-sabadell' : 'acc-revolut');
+        }
         if (loan.dayOfMonth !== undefined && Number(loan.dayOfMonth) > 0) {
           linkedTx.dayOfMonth = Number(loan.dayOfMonth);
         } else if (linkedTx.dayOfMonth) {
@@ -166,7 +248,10 @@ class Database {
           type: 'gasto',
           category: loan.type === 'hipoteca' ? 'Vivienda' : (loan.type === 'coche' ? 'Vehículo' : 'Préstamos'),
           frequency: 'mensual',
-          dayOfMonth: Number(loan.dayOfMonth) || 1,
+          dayOfMonth: loan.isLastBusinessDay ? 30 : (Number(loan.dayOfMonth) || 1),
+          isLastBusinessDay: Boolean(loan.isLastBusinessDay),
+          bank: loan.bank || 'Sabadell',
+          accountId: loan.accountId || 'acc-sabadell',
           startDate: loan.startDate ? (loan.startDate.length === 7 ? `${loan.startDate}-01` : loan.startDate) : getLocalISODate(),
           endDate: loan.endDate || null,
           loanId: loan.id,
@@ -193,6 +278,9 @@ class Database {
         if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = initialSeedData.finance.transactions || [];
         if (!Array.isArray(this.data.finance.loans)) this.data.finance.loans = initialSeedData.finance.loans || [];
         if (!Array.isArray(this.data.finance.goals)) this.data.finance.goals = initialSeedData.finance.goals || [];
+        if (!Array.isArray(this.data.finance.accounts) || this.data.finance.accounts.length === 0) {
+          this.data.finance.accounts = JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
+        }
         if (!Array.isArray(this.data.finance.overrides)) this.data.finance.overrides = [];
         if (!this.data.finance.payments) this.data.finance.payments = {};
         if (!Array.isArray(this.data.finance.categories) || this.data.finance.categories.length === 0) {
@@ -248,6 +336,9 @@ class Database {
         if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = initialSeedData.finance.transactions || [];
         if (!Array.isArray(this.data.finance.loans)) this.data.finance.loans = initialSeedData.finance.loans || [];
         if (!Array.isArray(this.data.finance.goals)) this.data.finance.goals = initialSeedData.finance.goals || [];
+        if (!Array.isArray(this.data.finance.accounts) || this.data.finance.accounts.length === 0) {
+          this.data.finance.accounts = JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
+        }
         if (!Array.isArray(this.data.finance.overrides)) this.data.finance.overrides = [];
         if (!this.data.finance.payments) this.data.finance.payments = {};
         if (!Array.isArray(this.data.finance.categories) || this.data.finance.categories.length === 0) {
@@ -416,6 +507,18 @@ class Database {
     if (!Array.isArray(this.data.finance.transactions)) this.data.finance.transactions = [];
     if (!this.data.finance.payments) this.data.finance.payments = {};
 
+    // Determinar cuenta bancaria según método de pago (Revolut/Apple Pay vs Sabadell)
+    let targetAccId = 'acc-revolut';
+    const methodLower = cleanMethod.toLowerCase();
+    if (methodLower.includes('sabadell') || cleanNotes.toLowerCase().includes('sabadell')) {
+      targetAccId = 'acc-sabadell';
+    } else if (methodLower.includes('ahorro')) {
+      targetAccId = 'acc-ahorro';
+    }
+
+    const accounts = this.getBankAccounts();
+    const targetAcc = accounts.find(a => a.id === targetAccId) || accounts[0];
+
     const newTx = {
       id,
       title: cleanTitle,
@@ -432,12 +535,14 @@ class Database {
       notes: cleanNotes ? `[Atajo Apple] ${cleanNotes}` : '[Atajo Apple]',
       source: cleanOrigin,
       paymentMethod: cleanMethod,
+      accountId: targetAcc ? targetAcc.id : targetAccId,
+      bank: targetAcc ? targetAcc.name : 'Revolut',
       createdAt: new Date().toISOString()
     };
 
     this.data.finance.transactions.push(newTx);
 
-    // 3. Registrar como pagado para el mes correspondiente
+    // 3. Registrar como pagado para el mes correspondiente y descontar saldo
     if (isPaid) {
       if (!this.data.finance.payments[monthKey]) {
         this.data.finance.payments[monthKey] = {};
@@ -446,6 +551,10 @@ class Database {
         paid: true,
         date: cleanDate
       };
+
+      if (targetAcc) {
+        targetAcc.balance = Math.round((targetAcc.balance - cleanAmount) * 100) / 100;
+      }
     }
 
     this.save();
@@ -1230,10 +1339,50 @@ class Database {
     if (!this.data.finance.payments) this.data.finance.payments = {};
     if (!this.data.finance.payments[month]) this.data.finance.payments[month] = {};
 
+    const prevPaid = Boolean(this.data.finance.payments[month]?.[txId]?.paid);
+    const newPaid = Boolean(paid);
+
     this.data.finance.payments[month][txId] = {
-      paid: Boolean(paid),
-      date: paid ? getLocalISODate() : null
+      paid: newPaid,
+      date: newPaid ? getLocalISODate() : null
     };
+
+    // Ajustar saldo real en vivo de la cuenta bancaria si el estado de pago cambió
+    if (prevPaid !== newPaid) {
+      const allTx = this.data.finance.transactions || [];
+      const baseTxId = txId.includes('_extra_') ? txId.split('_extra_')[0] : txId;
+      const tx = allTx.find(t => t.id === baseTxId || t.id === txId);
+
+      if (tx) {
+        const accounts = this.getBankAccounts();
+        let accId = tx.accountId;
+        if (!accId) {
+          if (tx.loanId || tx.category === 'Vivienda' || (tx.title && tx.title.toLowerCase().includes('hipoteca')) || tx.category === 'Nóminas') {
+            accId = 'acc-sabadell';
+          } else if (tx.paymentMethod?.toLowerCase().includes('revolut') || tx.paymentMethod?.toLowerCase().includes('apple')) {
+            accId = 'acc-revolut';
+          } else {
+            accId = 'acc-sabadell';
+          }
+        }
+        const acc = accounts.find(a => a.id === accId) || accounts[0];
+        if (acc) {
+          // Obtener importe efectivo (comprobando overrides)
+          const override = (this.data.finance.overrides || []).find(o => o.transactionId === txId && o.month === month);
+          let amt = override?.amount !== undefined ? Number(override.amount) : Number(tx.amount || 0);
+
+          // Si es hipoteca en mes 1 (2026-10), solo intereses
+          const loan = (this.data.finance.loans || []).find(l => l.id === tx.loanId);
+          if (loan && (loan.type === 'hipoteca' || loan.isLastBusinessDay) && month === (loan.startDate?.slice(0, 7) || '2026-10') && override?.amount === undefined) {
+            amt = Math.round((432000 * (0.0195 / 12)) * 100) / 100;
+          }
+
+          const multiplier = tx.type === 'ingreso' ? 1 : -1;
+          const delta = multiplier * (newPaid ? amt : -amt);
+          acc.balance = Math.round((Number(acc.balance || 0) + delta) * 100) / 100;
+        }
+      }
+    }
 
     this.save();
     return this.data.finance.payments[month][txId];
@@ -1347,9 +1496,16 @@ class Database {
         }
         const paymentInfo = monthPayments[tx.id] || { paid: false, date: null };
 
+        // Comprobar si corresponde a hipoteca bancaria o cuenta específica
+        const loan = (this.data.finance.loans || []).find(l => l.id === tx.loanId);
+        const isMortgage = loan ? (loan.type === 'hipoteca' || Boolean(loan.isLastBusinessDay)) : (Boolean(tx.isLastBusinessDay) || tx.title?.toLowerCase().includes('hipoteca'));
+
         let itemDay = Number(effectiveDay) || 1;
         if (override && override.dayOfMonth !== undefined && override.dayOfMonth !== null) {
           itemDay = Number(override.dayOfMonth);
+        } else if (isMortgage) {
+          // Último día hábil de cada mes (ej: Viernes si termina en sábado/domingo)
+          itemDay = getLastBusinessDay(currentYear, currentMonthNumber);
         } else if (effectiveDay) {
           itemDay = Number(effectiveDay);
         } else if (effectiveFrequency === 'puntual' && tx.startDate && tx.startDate.length >= 10) {
@@ -1361,6 +1517,58 @@ class Database {
         }
         const safeDay = Math.min(Math.max(Math.floor(itemDay) || 1, 1), daysInMonth);
 
+        // Hipoteca: la primera cuota es solo intereses (carencia de amortización)
+        let isInterestOnly = false;
+        let displayTitle = override ? override.title : tx.title;
+        let displayNotes = tx.notes || '';
+
+        if (loan && isMortgage && loan.firstPaymentInterestOnly !== false) {
+          const loanStartMonth = loan.startDate ? loan.startDate.slice(0, 7) : '2026-10';
+          if (monthKey === loanStartMonth) {
+            const principal = parseEuroAmount(loan.initialAmount || loan.currentBalance, 432000);
+            const annualRate = parseEuroAmount(loan.interestRate, 1.95) / 100;
+            const monthlyRate = annualRate / 12;
+            const interestOnly = Math.round((principal * monthlyRate) * 100) / 100; // 702.00 €
+            effectiveAmount = override?.amount !== undefined ? Number(override.amount) : interestOnly;
+            isInterestOnly = true;
+            displayTitle = `${loan.name} (1ª Cuota Solo Intereses)`;
+            displayNotes = 'Primera cuota con carencia de amortización (solo intereses bancarios)';
+          }
+        }
+
+        // Resolución de cuenta bancaria y tarjeta pagadora
+        let itemAccountId = tx.accountId;
+        let itemBankName = tx.bank;
+        let itemCardName = tx.paymentMethod;
+
+        if (!itemAccountId) {
+          if (isMortgage || tx.category === 'Vivienda' || (tx.title && tx.title.toLowerCase().includes('hipoteca'))) {
+            itemAccountId = 'acc-sabadell';
+            itemBankName = 'Banco Sabadell';
+            itemCardName = 'Cuenta Nómina (Domiciliado)';
+          } else if (tx.type === 'ingreso' && (tx.category === 'Nóminas' || tx.title.toLowerCase().includes('nómina') || tx.title.toLowerCase().includes('nomina'))) {
+            itemAccountId = 'acc-sabadell';
+            itemBankName = 'Banco Sabadell';
+            itemCardName = 'Transferencia Nómina';
+          } else if (tx.paymentMethod && (tx.paymentMethod.toLowerCase().includes('revolut') || tx.paymentMethod.toLowerCase().includes('apple'))) {
+            itemAccountId = 'acc-revolut';
+            itemBankName = 'Revolut';
+            itemCardName = tx.paymentMethod || 'Apple Pay Revolut';
+          } else if (tx.paymentMethod && tx.paymentMethod.toLowerCase().includes('sabadell')) {
+            itemAccountId = 'acc-sabadell';
+            itemBankName = 'Banco Sabadell';
+            itemCardName = tx.paymentMethod;
+          } else if (tx.category === 'Alimentación' || tx.category === 'Restaurantes & Bares' || tx.category === 'Ocio') {
+            itemAccountId = 'acc-revolut';
+            itemBankName = 'Revolut';
+            itemCardName = 'Apple Pay Revolut';
+          } else {
+            itemAccountId = 'acc-sabadell';
+            itemBankName = 'Banco Sabadell';
+            itemCardName = 'Recibo Domiciliado';
+          }
+        }
+
         const categories = this.data.finance.categories || [];
         const catName = override ? override.category : tx.category;
         const catObj = categories.find(c => c.name.toLowerCase() === (catName || '').toLowerCase());
@@ -1368,7 +1576,7 @@ class Database {
 
         items.push({
           id: tx.id,
-          title: override ? override.title : tx.title,
+          title: displayTitle,
           originalAmount: effectiveAmount,
           amount: override ? override.amount : effectiveAmount,
           type: tx.type,
@@ -1386,13 +1594,19 @@ class Database {
           paid: Boolean(paymentInfo.paid),
           paidDate: paymentInfo.date,
           loanId: tx.loanId || null,
+          accountId: itemAccountId,
+          bankName: itemBankName,
+          cardName: itemCardName,
+          isMortgage,
+          isInterestOnlyFirstPayment: isInterestOnly,
+          isLastBusinessDay: isMortgage,
           startDate: tx.startDate || null,
           endDate: tx.endDate || null,
           active: tx.active !== false,
           activeMonths: tx.activeMonths || null,
           rateSteps: tx.rateSteps || [],
           activeRateStep,
-          notes: tx.notes || ''
+          notes: displayNotes
         });
       }
 
@@ -1548,6 +1762,35 @@ class Database {
       }
     });
 
+    // Desglose y saldos reales de cuentas bancarias
+    const bankAccounts = this.getBankAccounts();
+    const accountsSummary = bankAccounts.map(acc => {
+      const accItems = items.filter(i => (i.accountId === acc.id) || (!i.accountId && acc.id === 'acc-sabadell'));
+      const accIncome = round2(accItems.filter(i => i.type === 'ingreso').reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
+      const accExpenses = round2(accItems.filter(i => i.type === 'gasto').reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
+      const accPaidExpenses = round2(accItems.filter(i => i.type === 'gasto' && i.paid).reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
+      const accPendingExpenses = round2(accItems.filter(i => i.type === 'gasto' && !i.paid).reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
+      const accPaidIncome = round2(accItems.filter(i => i.type === 'ingreso' && i.paid).reduce((sum, i) => sum + (Number(i.amount) || 0), 0));
+
+      const liveBalance = round2(acc.balance || 0);
+      // Previsión de saldo a fin de mes descontando recibos pendientes
+      const projectedBalance = round2(liveBalance - accPendingExpenses);
+
+      return {
+        ...acc,
+        monthIncome: accIncome,
+        monthExpenses: accExpenses,
+        monthPaidExpenses: accPaidExpenses,
+        monthPendingExpenses: accPendingExpenses,
+        monthPaidIncome: accPaidIncome,
+        projectedBalance,
+        itemsCount: accItems.length
+      };
+    });
+
+    const totalCashBalance = round2(bankAccounts.reduce((sum, a) => sum + (Number(a.balance) || 0), 0));
+    const totalProjectedCash = round2(accountsSummary.reduce((sum, a) => sum + (Number(a.projectedBalance) || 0), 0));
+
     return {
       month: monthKey,
       year: currentYear,
@@ -1574,7 +1817,103 @@ class Database {
       everydayExpensesCount,
       recurringExpensesTotal,
       everydayExpensesTotal,
-      allCategories: categories
+      allCategories: categories,
+      accountsSummary,
+      totalCashBalance,
+      totalProjectedCash
+    };
+  }
+
+  // --- GESTIÓN DE CUENTAS BANCARIAS Y SALDOS MULTI-BANCO ---
+  getBankAccounts() {
+    if (!this.data.finance) this.data.finance = {};
+    if (!Array.isArray(this.data.finance.accounts) || this.data.finance.accounts.length === 0) {
+      this.data.finance.accounts = JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
+      this.save();
+    }
+    return this.data.finance.accounts;
+  }
+
+  addBankAccount(accountData = {}) {
+    if (!this.data.finance) this.data.finance = {};
+    if (!Array.isArray(this.data.finance.accounts)) {
+      this.data.finance.accounts = JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
+    }
+    const newAcc = {
+      id: accountData.id || `acc-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+      name: (accountData.name || 'Nueva Cuenta').trim(),
+      bank: (accountData.bank || 'Banco').trim(),
+      type: accountData.type || 'corriente',
+      tag: accountData.tag || '',
+      iban: (accountData.iban || '').trim(),
+      color: accountData.color || '#3b82f6',
+      bgGradient: accountData.bgGradient || 'from-slate-800 to-slate-900',
+      borderGlow: accountData.borderGlow || 'border-blue-400/40',
+      icon: accountData.icon || 'CreditCard',
+      balance: parseEuroAmount(accountData.balance, 0),
+      isDefault: Boolean(accountData.isDefault),
+      cards: Array.isArray(accountData.cards) ? accountData.cards : []
+    };
+    this.data.finance.accounts.push(newAcc);
+    this.save();
+    return newAcc;
+  }
+
+  updateBankAccount(id, updates = {}) {
+    const accounts = this.getBankAccounts();
+    const acc = accounts.find(a => a.id === id);
+    if (!acc) throw new Error(`Cuenta bancaria ${id} no encontrada`);
+    if (updates.name !== undefined) acc.name = updates.name.trim();
+    if (updates.bank !== undefined) acc.bank = updates.bank.trim();
+    if (updates.type !== undefined) acc.type = updates.type;
+    if (updates.tag !== undefined) acc.tag = updates.tag;
+    if (updates.iban !== undefined) acc.iban = updates.iban.trim();
+    if (updates.color !== undefined) acc.color = updates.color;
+    if (updates.bgGradient !== undefined) acc.bgGradient = updates.bgGradient;
+    if (updates.borderGlow !== undefined) acc.borderGlow = updates.borderGlow;
+    if (updates.icon !== undefined) acc.icon = updates.icon;
+    if (updates.balance !== undefined) acc.balance = parseEuroAmount(updates.balance, acc.balance);
+    if (updates.cards !== undefined && Array.isArray(updates.cards)) acc.cards = updates.cards;
+    if (updates.isDefault !== undefined) {
+      if (updates.isDefault) {
+        accounts.forEach(a => { a.isDefault = (a.id === id); });
+      } else {
+        acc.isDefault = false;
+      }
+    }
+    this.save();
+    return acc;
+  }
+
+  deleteBankAccount(id) {
+    if (!this.data.finance?.accounts) return { success: true };
+    this.data.finance.accounts = this.data.finance.accounts.filter(a => a.id !== id);
+    this.save();
+    return { success: true, id };
+  }
+
+  transferBetweenAccounts({ fromAccountId, toAccountId, amount, concept }) {
+    const numAmount = parseEuroAmount(amount, 0);
+    if (numAmount <= 0) throw new Error('El importe a transferir debe ser mayor a 0');
+    if (fromAccountId === toAccountId) throw new Error('La cuenta de origen y destino no pueden ser la misma');
+
+    const accounts = this.getBankAccounts();
+    const fromAcc = accounts.find(a => a.id === fromAccountId);
+    const toAcc = accounts.find(a => a.id === toAccountId);
+
+    if (!fromAcc) throw new Error('Cuenta de origen no encontrada');
+    if (!toAcc) throw new Error('Cuenta de destino no encontrada');
+
+    fromAcc.balance = Math.round((Number(fromAcc.balance || 0) - numAmount) * 100) / 100;
+    toAcc.balance = Math.round((Number(toAcc.balance || 0) + numAmount) * 100) / 100;
+
+    this.save();
+    return {
+      success: true,
+      amount: numAmount,
+      concept: concept || 'Traspaso entre cuentas',
+      from: { id: fromAcc.id, name: fromAcc.name, balance: fromAcc.balance },
+      to: { id: toAcc.id, name: toAcc.name, balance: toAcc.balance }
     };
   }
 

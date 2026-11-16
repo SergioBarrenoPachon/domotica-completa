@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Landmark, 
-  Plus, 
-  Calculator, 
-  Trash2, 
-  Edit3, 
-  TrendingDown, 
-  Clock, 
-  Calendar, 
-  Sparkles, 
-  Check, 
+import {
+  Landmark,
+  Plus,
+  Calculator,
+  Trash2,
+  Edit3,
+  TrendingDown,
+  Clock,
+  Calendar,
+  Sparkles,
+  Check,
   ShieldCheck,
   Percent,
   Car,
@@ -308,10 +308,10 @@ export default function LoansManager({ api, onRefresh }) {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Top Banner & KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        
+
         {/* Total Deuda Pendiente */}
         <div className="glass-ios p-5 rounded-[28px] border border-purple-500/20 bg-purple-500/[0.05] flex flex-col justify-between shadow-glass-ambient">
           <div className="flex items-center justify-between">
@@ -424,29 +424,27 @@ export default function LoansManager({ api, onRefresh }) {
               const isRepaymentsExpanded = Boolean(expandedRepayments[loan.id]);
 
               return (
-                <div 
+                <div
                   key={loan.id}
-                  className={`p-5 sm:p-6 rounded-[28px] border transition-all flex flex-col justify-between gap-4 shadow-glass-ambient ${
-                    isFamily
-                      ? 'bg-emerald-500/[0.03] border-emerald-500/20 hover:border-emerald-500/40'
-                      : isMortgage
-                        ? 'bg-amber-500/[0.03] border-amber-500/20 hover:border-amber-500/40'
-                        : 'bg-white/[0.04] border-white/10 hover:border-white/20'
-                  }`}
+                  className={`p-5 sm:p-6 rounded-[28px] border transition-all flex flex-col justify-between gap-4 shadow-glass-ambient ${isFamily
+                    ? 'bg-emerald-500/[0.03] border-emerald-500/20 hover:border-emerald-500/40'
+                    : isMortgage
+                      ? 'bg-amber-500/[0.03] border-amber-500/20 hover:border-amber-500/40'
+                      : 'bg-white/[0.04] border-white/10 hover:border-white/20'
+                    }`}
                 >
                   <div>
                     {/* Header of card */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3.5">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
-                          isFamily
-                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                            : isMortgage 
-                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' 
-                              : isCar
-                                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                                : 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
-                        }`}>
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${isFamily
+                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                          : isMortgage
+                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                            : isCar
+                              ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                              : 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                          }`}>
                           {isFamily ? <Users className="w-6 h-6" /> : isMortgage ? <Home className="w-6 h-6" /> : isCar ? <Car className="w-6 h-6" /> : <Landmark className="w-6 h-6" />}
                         </div>
                         <div>
@@ -469,9 +467,25 @@ export default function LoansManager({ api, onRefresh }) {
                           <span className="text-xs px-3 py-1 rounded-xl bg-white/[0.06] border border-white/10 text-slate-200 font-mono font-bold shadow-sm whitespace-nowrap">
                             {Number(loan.monthlyPayment).toFixed(2)}€ / mes
                           </span>
-                          <span className="text-[10px] text-cyan-300 font-mono flex items-center gap-1">
-                            📅 En calendario (día {loan.dayOfMonth || 1})
-                          </span>
+                          {isMortgage ? (
+                            <>
+                              <span className="text-[10px] text-amber-300 font-mono font-semibold flex items-center gap-1">
+                                📅 Último día hábil del mes
+                              </span>
+                              <span className="text-[9.5px] text-sky-300 font-mono">
+                                🏛️ Domiciliado en Sabadell
+                              </span>
+                              {loan.firstPaymentInterestOnly !== false && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-200 border border-amber-400/30 font-bold">
+                                  1ª cuota: 702,00€ (solo intereses)
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-cyan-300 font-mono flex items-center gap-1">
+                              📅 En calendario (día {loan.dayOfMonth || 1})
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-xs px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold whitespace-nowrap">
@@ -486,9 +500,8 @@ export default function LoansManager({ api, onRefresh }) {
                         <span className="text-[10px] text-slate-400 uppercase font-display font-bold block">
                           {isFamily ? 'Te queda por devolver a tus padres:' : 'Capital Pendiente de Amortizar:'}
                         </span>
-                        <span className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${
-                          isFamily ? 'text-emerald-300' : 'text-purple-300'
-                        }`}>
+                        <span className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${isFamily ? 'text-emerald-300' : 'text-purple-300'
+                          }`}>
                           {formatEuro(loan.currentBalance)}
                         </span>
                       </div>
@@ -514,12 +527,11 @@ export default function LoansManager({ api, onRefresh }) {
                       </div>
 
                       <div className="w-full bg-white/[0.05] h-2.5 rounded-full overflow-hidden border border-white/5">
-                        <div 
-                          className={`h-full rounded-full transition-all duration-500 shadow-sm ${
-                            isFamily 
-                              ? 'bg-gradient-to-r from-emerald-400 to-teal-400'
-                              : 'bg-gradient-to-r from-emerald-400 via-amber-400 to-amber-500'
-                          }`} 
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 shadow-sm ${isFamily
+                            ? 'bg-gradient-to-r from-emerald-400 to-teal-400'
+                            : 'bg-gradient-to-r from-emerald-400 via-amber-400 to-amber-500'
+                            }`}
                           style={{ width: `${Math.min(100, Math.max(0, loan.progressPercent || 0))}%` }}
                         />
                       </div>
@@ -567,8 +579,8 @@ export default function LoansManager({ api, onRefresh }) {
                         {isRepaymentsExpanded && (
                           <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1">
                             {repayments.map((rep) => (
-                              <div 
-                                key={rep.id} 
+                              <div
+                                key={rep.id}
                                 className="p-2.5 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-xs"
                               >
                                 <div className="space-y-0.5">
@@ -803,11 +815,10 @@ export default function LoansManager({ api, onRefresh }) {
                   <button
                     type="button"
                     onClick={() => setSimForm({ ...simForm, mode: 'reduce_term' })}
-                    className={`p-3 rounded-2xl text-xs font-bold border text-left flex items-center gap-2.5 transition-all active:scale-95 ${
-                      simForm.mode === 'reduce_term'
-                        ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-sm'
-                        : 'bg-white/[0.03] border-white/5 text-slate-400 hover:text-white'
-                    }`}
+                    className={`p-3 rounded-2xl text-xs font-bold border text-left flex items-center gap-2.5 transition-all active:scale-95 ${simForm.mode === 'reduce_term'
+                      ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-sm'
+                      : 'bg-white/[0.03] border-white/5 text-slate-400 hover:text-white'
+                      }`}
                   >
                     <Clock className="w-4 h-4 flex-shrink-0 text-amber-400" />
                     <div>
@@ -819,11 +830,10 @@ export default function LoansManager({ api, onRefresh }) {
                   <button
                     type="button"
                     onClick={() => setSimForm({ ...simForm, mode: 'reduce_payment' })}
-                    className={`p-3 rounded-2xl text-xs font-bold border text-left flex items-center gap-2.5 transition-all active:scale-95 ${
-                      simForm.mode === 'reduce_payment'
-                        ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-sm'
-                        : 'bg-white/[0.03] border-white/5 text-slate-400 hover:text-white'
-                    }`}
+                    className={`p-3 rounded-2xl text-xs font-bold border text-left flex items-center gap-2.5 transition-all active:scale-95 ${simForm.mode === 'reduce_payment'
+                      ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-sm'
+                      : 'bg-white/[0.03] border-white/5 text-slate-400 hover:text-white'
+                      }`}
                   >
                     <TrendingDown className="w-4 h-4 flex-shrink-0 text-amber-400" />
                     <div>
@@ -901,7 +911,7 @@ export default function LoansManager({ api, onRefresh }) {
           title="Registrar Nuevo Préstamo o Hipoteca"
         >
           <form onSubmit={handleCreateLoan} className="space-y-4">
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Tipo de Financiación *</label>
@@ -910,8 +920,8 @@ export default function LoansManager({ api, onRefresh }) {
                   onChange={(e) => {
                     const newType = e.target.value;
                     const isFam = newType === 'familiar';
-                    setLoanForm({ 
-                      ...loanForm, 
+                    setLoanForm({
+                      ...loanForm,
                       type: newType,
                       interestRate: isFam ? 0 : 2.5,
                       monthlyPayment: isFam ? 0 : loanForm.monthlyPayment,
@@ -1091,7 +1101,7 @@ export default function LoansManager({ api, onRefresh }) {
           title={`Editar: ${editModal.name || 'Préstamo'}`}
         >
           <form onSubmit={handleUpdateLoan} className="space-y-4">
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-slate-300 font-semibold block mb-1 font-display">Tipo de Financiación *</label>
@@ -1100,8 +1110,8 @@ export default function LoansManager({ api, onRefresh }) {
                   onChange={(e) => {
                     const newType = e.target.value;
                     const isFam = newType === 'familiar';
-                    setEditForm({ 
-                      ...editForm, 
+                    setEditForm({
+                      ...editForm,
                       type: newType,
                       interestRate: isFam ? 0 : editForm.interestRate,
                       monthlyPayment: isFam ? 0 : editForm.monthlyPayment,

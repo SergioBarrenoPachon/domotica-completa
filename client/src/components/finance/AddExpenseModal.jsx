@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Repeat, 
-  Zap, 
-  TrendingUp, 
-  Plus, 
-  Calendar, 
-  Check, 
-  Sparkles, 
-  Tag, 
-  FolderPlus, 
+import {
+  Repeat,
+  Zap,
+  TrendingUp,
+  Plus,
+  Calendar,
+  Check,
+  Sparkles,
+  Tag,
+  FolderPlus,
   X,
   ChevronDown,
   Info,
@@ -52,11 +52,11 @@ const PRESET_INCOME = [
 ];
 
 
-export default function AddExpenseModal({ 
-  isOpen, 
-  onClose, 
-  onCreated, 
-  api, 
+export default function AddExpenseModal({
+  isOpen,
+  onClose,
+  onCreated,
+  api,
   currentMonth,
   initialDay = 1,
   initialType = 'gasto',
@@ -186,8 +186,8 @@ export default function AddExpenseModal({
     if (preset.frequency) setFrequency(preset.frequency);
     if (preset.defaultDay) setDayOfMonth(preset.defaultDay);
     if (preset.monthOfYear) setMonthOfYear(preset.monthOfYear);
-    const found = categories.find(c => c.name.toLowerCase() === preset.category.toLowerCase()) || 
-                  categories.find(c => c.group === 'Ingresos');
+    const found = categories.find(c => c.name.toLowerCase() === preset.category.toLowerCase()) ||
+      categories.find(c => c.group === 'Ingresos');
     if (found) setCategory(found.name);
   };
 
@@ -209,7 +209,7 @@ export default function AddExpenseModal({
     e.preventDefault();
     if (!newCatName.trim()) return;
 
-    const finalGroup = isCustomGroup 
+    const finalGroup = isCustomGroup
       ? (customGroupName.trim() || 'Personalizados')
       : (newCatGroup || 'Personalizados');
 
@@ -292,17 +292,16 @@ export default function AddExpenseModal({
       title="Nuevo Movimiento Financiero"
     >
       <div className="space-y-5">
-        
+
         {/* TOP SELECTOR: 3 MODALIDADES INTUITIVAS (iOS 27 SEGMENTED CONTROLLER) */}
         <div className="p-1.5 bg-white/[0.04] backdrop-blur-2xl rounded-2xl border border-white/10 grid grid-cols-3 gap-1.5 shadow-inner">
           <button
             type="button"
             onClick={() => handleModeChange('recurring')}
-            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] ${
-              entryMode === 'recurring'
-                ? 'bg-amber-400 text-slate-950 shadow-[0_4px_16px_rgba(255,159,10,0.35)] font-black'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
-            }`}
+            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] ${entryMode === 'recurring'
+              ? 'bg-amber-400 text-slate-950 shadow-[0_4px_16px_rgba(255,159,10,0.35)] font-black'
+              : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+              }`}
           >
             <Repeat className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">Recibo Periódico</span>
@@ -311,11 +310,10 @@ export default function AddExpenseModal({
           <button
             type="button"
             onClick={() => handleModeChange('everyday')}
-            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] ${
-              entryMode === 'everyday'
-                ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-[0_4px_16px_rgba(249,115,22,0.35)] font-black'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
-            }`}
+            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] ${entryMode === 'everyday'
+              ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-[0_4px_16px_rgba(249,115,22,0.35)] font-black'
+              : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+              }`}
           >
             <Zap className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">Gasto Cotidiano</span>
@@ -324,11 +322,10 @@ export default function AddExpenseModal({
           <button
             type="button"
             onClick={() => handleModeChange('income')}
-            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] ${
-              entryMode === 'income'
-                ? 'bg-emerald-400 text-slate-950 shadow-[0_4px_16px_rgba(48,209,88,0.35)] font-black'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
-            }`}
+            className={`py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.98] ${entryMode === 'income'
+              ? 'bg-emerald-400 text-slate-950 shadow-[0_4px_16px_rgba(48,209,88,0.35)] font-black'
+              : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+              }`}
           >
             <TrendingUp className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">Ingreso</span>
@@ -397,7 +394,7 @@ export default function AddExpenseModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          
+
           {/* TÍTULO E IMPORTE */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
@@ -413,8 +410,8 @@ export default function AddExpenseModal({
                   entryMode === 'recurring'
                     ? 'Ej: Luz Endesa, Comunidad, Seguro...'
                     : entryMode === 'everyday'
-                    ? 'Ej: Mercadona, Repsol, Farmacia...'
-                    : 'Ej: Nómina, Devolución IRPF, Extra...'
+                      ? 'Ej: Mercadona, Repsol, Farmacia...'
+                      : 'Ej: Nómina, Devolución IRPF, Extra...'
                 }
                 className="glass-input rounded-2xl px-4 py-3 text-white text-sm focus:border-white/30 outline-none w-full"
               />
@@ -631,7 +628,7 @@ export default function AddExpenseModal({
           ) : (
             /* MODO GASTO PERIÓDICO O INGRESO */
             <div className="space-y-3.5 p-4 rounded-2xl bg-amber-500/[0.07] border border-amber-500/20">
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-amber-300 font-semibold block mb-1 font-display">

@@ -105,7 +105,7 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
     endDate: '',
     isIndefinite: true,
     notes: '',
-    paymentMethod: 'Apple Pay',
+    paymentMethod: 'Apple Pay (Revolut)',
     date: getLocalISODate(),
     customMonthsEnabled: false,
     activeMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -273,7 +273,7 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
       endDate: '',
       isIndefinite: true,
       notes: '',
-      paymentMethod: 'Apple Pay',
+      paymentMethod: 'Apple Pay (Revolut)',
       date: getLocalISODate(),
       customMonthsEnabled: false,
       activeMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -1510,8 +1510,8 @@ export default function ExpensesManager({ api, currentMonth, onDataChanged, init
             {expenseKind === 'punctual' && (
               <div>
                 <label className="text-xs text-slate-300 font-bold block mb-1">Método de Pago</label>
-                <div className="flex gap-2">
-                  {['Apple Pay', 'Tarjeta', 'Efectivo', 'Transferencia'].map(m => (
+                <div className="flex gap-2 flex-wrap">
+                  {['Apple Pay (Revolut)', 'Tarjeta Sabadell', 'Efectivo', 'Transferencia'].map(m => (
                     <button
                       key={m}
                       type="button"

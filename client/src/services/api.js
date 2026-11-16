@@ -271,6 +271,42 @@ export const api = {
     return handleResponse(res);
   },
 
+  // BANK ACCOUNTS & MULTI-BANK
+  async getBankAccounts() {
+    const res = await fetch(`${BASE_URL}/finance/accounts`);
+    return handleResponse(res);
+  },
+  async addBankAccount(data) {
+    const res = await fetch(`${BASE_URL}/finance/accounts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  },
+  async updateBankAccount(id, updates) {
+    const res = await fetch(`${BASE_URL}/finance/accounts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    return handleResponse(res);
+  },
+  async deleteBankAccount(id) {
+    const res = await fetch(`${BASE_URL}/finance/accounts/${id}`, {
+      method: 'DELETE'
+    });
+    return handleResponse(res);
+  },
+  async transferBetweenAccounts(data) {
+    const res = await fetch(`${BASE_URL}/finance/accounts/transfer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return handleResponse(res);
+  },
+
   // LOANS & MORTGAGES
   async getLoans() {
     const res = await fetch(`${BASE_URL}/finance/loans`);

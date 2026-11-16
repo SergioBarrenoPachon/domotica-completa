@@ -21,7 +21,7 @@ router.get('/year/:year', (req, res) => {
     const months = [];
     let annualIncome = 0;
     let annualExpenses = 0;
-    
+
     for (let m = 1; m <= 12; m++) {
       const monthStr = `${year}-${String(m).padStart(2, '0')}`;
       const summary = db.calculateMonthFinance(monthStr);
@@ -31,14 +31,14 @@ router.get('/year/:year', (req, res) => {
       // Extract highlights for this month (e.g. extra pays, annual bills, or notable transactions)
       const highlights = (summary.items || [])
         .filter(item => item.frequency === 'anual' || item.title?.toLowerCase().includes('extra') || item.title?.toLowerCase().includes('bonus') || item.frequency === 'semestral' || item.amount >= 500)
-        .map(i => ({ 
-          id: i.id, 
-          title: i.title, 
-          amount: i.amount, 
-          type: i.type, 
-          dayOfMonth: i.dayOfMonth, 
+        .map(i => ({
+          id: i.id,
+          title: i.title,
+          amount: i.amount,
+          type: i.type,
+          dayOfMonth: i.dayOfMonth,
           category: i.category,
-          paid: i.paid 
+          paid: i.paid
         }));
 
       months.push({
@@ -125,20 +125,20 @@ router.get('/transactions', (req, res) => {
 // POST /api/finance/transactions - Crear nueva transacción / ingreso / gasto recurrente o puntual
 router.post('/transactions', (req, res) => {
   try {
-    const { 
-      title, 
-      amount, 
-      type, 
-      category, 
-      frequency, 
-      dayOfMonth, 
-      monthOfYear, 
-      startDate, 
-      endDate, 
-      active, 
-      initialPaid, 
-      notes, 
-      yearlyIncreasePct, 
+    const {
+      title,
+      amount,
+      type,
+      category,
+      frequency,
+      dayOfMonth,
+      monthOfYear,
+      startDate,
+      endDate,
+      active,
+      initialPaid,
+      notes,
+      yearlyIncreasePct,
       isIndefinite,
       activeMonths,
       rateSteps,
@@ -147,20 +147,20 @@ router.post('/transactions', (req, res) => {
     if (!title || amount === undefined) {
       return res.status(400).json({ success: false, error: 'Título y monto son requeridos' });
     }
-    const newTx = db.addFinanceTransaction({ 
-      title, 
-      amount, 
-      type, 
-      category, 
-      frequency, 
-      dayOfMonth, 
-      monthOfYear, 
-      startDate, 
-      endDate, 
-      active, 
-      initialPaid, 
-      notes, 
-      yearlyIncreasePct, 
+    const newTx = db.addFinanceTransaction({
+      title,
+      amount,
+      type,
+      category,
+      frequency,
+      dayOfMonth,
+      monthOfYear,
+      startDate,
+      endDate,
+      active,
+      initialPaid,
+      notes,
+      yearlyIncreasePct,
       isIndefinite,
       activeMonths,
       rateSteps,
@@ -434,8 +434,8 @@ router.post('/shortcuts/gasto', async (req, res) => {
     res.status(201).json(result);
   } catch (error) {
     console.error('[Apple Shortcuts Error]', error.message);
-    res.status(400).json({ 
-      success: false, 
+    res.status(400).json({
+      success: false,
       error: error.message,
       speechFeedback: `Error: ${error.message}`
     });
@@ -449,7 +449,7 @@ router.get('/shortcuts/gasto', async (req, res) => {
       const result = await db.addPunctualExpenseShortcut(req.query);
       return res.status(201).json(result);
     }
-    
+
     // Instrucciones y formato
     res.json({
       endpoint: '/api/finance/shortcuts/gasto',
@@ -497,6 +497,57 @@ router.put('/shortcuts/gasto/:id', async (req, res) => {
     res.json({ success: true, data: result, message: 'Gasto puntual modificado correctamente' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// --- MULTI-BANK & ACCOUNTS ENDPOINTS ---
+// GET /api/finance/accounts - Listar todas las cuentas bancarias y saldos
+router.get('/accounts', (req, res) => {
+  try {
+    const accounts = db.getBankAccounts();
+    res.json({ success: true, data: accounts });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/finance/accounts - Crear nueva cuenta bancaria
+router.post('/accounts', (req, res) => {
+  try {
+    const account = db.addBankAccount(req.body);
+    res.status(201).json({ success: true, data: account });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/finance/accounts/:id - Actualizar cuenta bancaria o saldo
+router.put('/accounts/:id', (req, res) => {
+  try {
+    const updated = db.updateBankAccount(req.params.id, req.body);
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /api/finance/accounts/:id - Eliminar cuenta bancaria
+router.delete('/accounts/:id', (req, res) => {
+  try {
+    const result = db.deleteBankAccount(req.params.id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/finance/accounts/transfer - Transferencia / traspaso de saldo entre cuentas
+router.post('/accounts/transfer', (req, res) => {
+  try {
+    const result = db.transferBetweenAccounts(req.body);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 

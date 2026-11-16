@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Calendar as CalendarIcon, 
-  Check, 
-  Clock, 
-  Plus, 
-  Briefcase, 
-  Home, 
-  ShieldCheck, 
-  Zap, 
-  ShoppingCart, 
-  Edit3, 
-  Trash2, 
+import {
+  Calendar as CalendarIcon,
+  Check,
+  Clock,
+  Plus,
+  Briefcase,
+  Home,
+  ShieldCheck,
+  Zap,
+  ShoppingCart,
+  Edit3,
+  Trash2,
   MoreVertical,
   X,
   ArrowRightLeft,
@@ -29,23 +29,25 @@ const FinanceYearView = React.lazy(() => import('./FinanceYearView'));
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-function FinanceCalendar({ 
+function FinanceCalendar({
   api,
-  monthData, 
-  currentMonth, 
+  monthData,
+  currentMonth,
+  selectedAccountId = null,
+  onSelectAccount,
   onSelectMonth,
-  onTogglePaid, 
-  onOpenAddTx, 
-  onMoveItemDay, 
+  onTogglePaid,
+  onOpenAddTx,
+  onMoveItemDay,
   onQuickAddTx,
-  onEditItem, 
+  onEditItem,
   onDeleteItem,
   onPrevMonth,
   onNextMonth,
   onCurrentMonth
 }) {
   const today = new Date();
-  
+
   // View mode: 'grid' (Cuadrícula Mensual) | 'agenda' (Lista por Días) | 'month' (Evolución Anual Multimes)
   const [viewMode, setViewMode] = useState('grid');
 
@@ -92,10 +94,36 @@ function FinanceCalendar({
     daysInMonth = 30,
     firstDayOfWeek = 0, // 0 = Lunes, 6 = Domingo
     dailyBreakdown = {},
-    items = [],
+    items: rawItems = [],
     totalIncome = 0,
     totalExpenses = 0
   } = (monthData || {});
+
+  // Filtrado reactivo por cuenta bancaria seleccionada
+  const items = useMemo(() => {
+    if (!selectedAccountId) return rawItems;
+    return rawItems.filter(i => (i.accountId === selectedAccountId) || (!i.accountId && selectedAccountId === 'acc-sabadell'));
+  }, [rawItems, selectedAccountId]);
+
+  const activeDailyBreakdown = useMemo(() => {
+    if (!selectedAccountId) return dailyBreakdown;
+    const res = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      const orig = dailyBreakdown[d];
+      if (!orig) continue;
+      const filtered = (orig.items || []).filter(i => (i.accountId === selectedAccountId) || (!i.accountId && selectedAccountId === 'acc-sabadell'));
+      const dayIncome = filtered.filter(i => i.type === 'ingreso').reduce((s, i) => s + (Number(i.amount) || 0), 0);
+      const dayExpenses = filtered.filter(i => i.type === 'gasto').reduce((s, i) => s + (Number(i.amount) || 0), 0);
+      res[d] = {
+        ...orig,
+        items: filtered,
+        dayIncome: Math.round(dayIncome * 100) / 100,
+        dayExpenses: Math.round(dayExpenses * 100) / 100,
+        hasPending: filtered.some(i => i.type === 'gasto' && !i.paid)
+      };
+    }
+    return res;
+  }, [dailyBreakdown, selectedAccountId, daysInMonth]);
 
   const isCurrentViewingMonth = today.getFullYear() === year && (today.getMonth() + 1) === monthNumber;
   const currentDayNumber = today.getDate();
@@ -113,13 +141,13 @@ function FinanceCalendar({
   const daysWithItems = useMemo(() => {
     const list = [];
     for (let d = 1; d <= daysInMonth; d++) {
-      const data = dailyBreakdown[d];
+      const data = activeDailyBreakdown[d];
       if (data && data.items && data.items.length > 0) {
         list.push(data);
       }
     }
     return list;
-  }, [dailyBreakdown, daysInMonth]);
+  }, [activeDailyBreakdown, daysInMonth]);
 
   const formatEuro = (val) => {
     const num = Number(val) || 0;
@@ -143,8 +171,8 @@ function FinanceCalendar({
       return 'mortgage';
     }
     const insuranceKeywords = [
-      'seguro', 'póliza', 'poliza', 'mutua', 'mapfre', 'allianz', 'axa', 
-      'sanitas', 'adeslas', 'pelayo', 'zurich', 'caser', 'linea directa', 
+      'seguro', 'póliza', 'poliza', 'mutua', 'mapfre', 'allianz', 'axa',
+      'sanitas', 'adeslas', 'pelayo', 'zurich', 'caser', 'linea directa',
       'línea directa', 'ocaso', 'santa lucia', 'santa lucía', 'netflix', 'spotify'
     ];
     if (cat.includes('seguro') || cat.includes('suscrip') || insuranceKeywords.some(kw => title.includes(kw) || cat.includes(kw))) {
@@ -267,18 +295,17 @@ function FinanceCalendar({
 
   return (
     <div className="space-y-4 sm:space-y-5 w-full">
-      
+
       {/* 1. SELECTOR SUPERIOR CON VISTAS: CUADRÍCULA | AGENDA | MULTIMES (iOS 27 SEGMENTED CONTROLLER) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
         <div className="flex items-center gap-1 p-1 bg-white/[0.04] rounded-2xl border border-white/10 shadow-inner w-full sm:w-auto overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setViewMode('grid')}
-            className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap ${
-              viewMode === 'grid'
-                ? 'bg-amber-400 text-slate-950 font-black shadow-[0_4px_16px_rgba(255,159,10,0.35)]'
-                : 'text-slate-400 hover:text-white'
-            }`}
+            className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap ${viewMode === 'grid'
+              ? 'bg-amber-400 text-slate-950 font-black shadow-[0_4px_16px_rgba(255,159,10,0.35)]'
+              : 'text-slate-400 hover:text-white'
+              }`}
           >
             <CalendarIcon className="w-4 h-4" />
             <span>Cuadrícula</span>
@@ -287,11 +314,10 @@ function FinanceCalendar({
           <button
             type="button"
             onClick={() => setViewMode('agenda')}
-            className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap ${
-              viewMode === 'agenda'
-                ? 'bg-amber-400 text-slate-950 font-black shadow-[0_4px_16px_rgba(255,159,10,0.35)]'
-                : 'text-slate-400 hover:text-white'
-            }`}
+            className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap ${viewMode === 'agenda'
+              ? 'bg-amber-400 text-slate-950 font-black shadow-[0_4px_16px_rgba(255,159,10,0.35)]'
+              : 'text-slate-400 hover:text-white'
+              }`}
           >
             <List className="w-4 h-4" />
             <span>Lista por Días ({daysWithItems.length})</span>
@@ -300,11 +326,10 @@ function FinanceCalendar({
           <button
             type="button"
             onClick={() => setViewMode('month')}
-            className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap ${
-              viewMode === 'month'
-                ? 'bg-amber-400 text-slate-950 font-black shadow-[0_4px_16px_rgba(255,159,10,0.35)]'
-                : 'text-slate-400 hover:text-white'
-            }`}
+            className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 whitespace-nowrap ${viewMode === 'month'
+              ? 'bg-amber-400 text-slate-950 font-black shadow-[0_4px_16px_rgba(255,159,10,0.35)]'
+              : 'text-slate-400 hover:text-white'
+              }`}
           >
             <Clock className="w-4 h-4" />
             <span>Evolución Anual</span>
@@ -362,20 +387,18 @@ function FinanceCalendar({
               const isToday = isCurrentViewingMonth && dNum === currentDayNumber;
 
               return (
-                <div 
+                <div
                   key={`agenda-day-${dNum}`}
-                  className={`glass-ios p-3.5 sm:p-5 rounded-[26px] sm:rounded-[30px] border transition-all space-y-3 shadow-ambient-sm ${
-                    isToday
-                      ? 'border-amber-400/50 bg-amber-500/[0.05] ring-1 ring-amber-400/30'
-                      : 'border-white/10 hover:border-white/20'
-                  }`}
+                  className={`glass-ios p-3.5 sm:p-5 rounded-[26px] sm:rounded-[30px] border transition-all space-y-3 shadow-ambient-sm ${isToday
+                    ? 'border-amber-400/50 bg-amber-500/[0.05] ring-1 ring-amber-400/30'
+                    : 'border-white/10 hover:border-white/20'
+                    }`}
                 >
                   {/* Cabecera del Día en Lista */}
                   <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/8 flex-wrap">
                     <div className="flex items-center gap-2.5">
-                      <span className={`w-9 h-9 rounded-2xl font-mono font-black text-sm flex items-center justify-center ${
-                        isToday ? 'bg-amber-400 text-slate-950 shadow-sm' : 'bg-white/10 text-white'
-                      }`}>
+                      <span className={`w-9 h-9 rounded-2xl font-mono font-black text-sm flex items-center justify-center ${isToday ? 'bg-amber-400 text-slate-950 shadow-sm' : 'bg-white/10 text-white'
+                        }`}>
                         {dNum}
                       </span>
                       <div>
@@ -421,13 +444,12 @@ function FinanceCalendar({
                         <div
                           key={`agenda-item-${item.id}`}
                           onClick={(e) => handleOpenActionSheet(item, e)}
-                          className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all cursor-pointer select-none active:scale-[0.99] ${
-                            item.paid
-                              ? 'bg-white/[0.02] border-white/5 opacity-70'
-                              : isExpense
+                          className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all cursor-pointer select-none active:scale-[0.99] ${item.paid
+                            ? 'bg-white/[0.02] border-white/5 opacity-70'
+                            : isExpense
                               ? 'bg-rose-500/[0.06] border-rose-500/20 hover:border-rose-400/40'
                               : 'bg-emerald-500/[0.06] border-emerald-500/20 hover:border-emerald-400/40'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center gap-3 min-w-0 flex-1">
                             {/* Checkmark táctil */}
@@ -437,11 +459,10 @@ function FinanceCalendar({
                                 e.stopPropagation();
                                 if (onTogglePaid) onTogglePaid(item);
                               }}
-                              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border transition-all flex-shrink-0 ${
-                                item.paid
-                                  ? 'bg-emerald-400 border-emerald-400 text-slate-950 font-black shadow-sm'
-                                  : 'border-white/30 hover:border-amber-400 text-transparent'
-                              }`}
+                              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border transition-all flex-shrink-0 ${item.paid
+                                ? 'bg-emerald-400 border-emerald-400 text-slate-950 font-black shadow-sm'
+                                : 'border-white/30 hover:border-amber-400 text-transparent'
+                                }`}
                               title={item.paid ? 'Marcado (clic para desmarcar)' : 'Marcar como pagado'}
                             >
                               <Check className="w-4 h-4 stroke-[3]" />
@@ -452,9 +473,8 @@ function FinanceCalendar({
                             </div>
 
                             <div className="min-w-0">
-                              <p className={`text-sm font-bold truncate font-display ${
-                                item.paid ? 'line-through text-slate-400' : 'text-white'
-                              }`}>
+                              <p className={`text-sm font-bold truncate font-display ${item.paid ? 'line-through text-slate-400' : 'text-white'
+                                }`}>
                                 {item.title}
                               </p>
                               <p className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5 flex-wrap">
@@ -463,6 +483,36 @@ function FinanceCalendar({
                                 <span className={item.paid ? 'text-emerald-400 font-bold' : 'text-amber-300 font-semibold'}>
                                   {item.paid ? '✓ Listo' : '⏳ Pendiente'}
                                 </span>
+                                {item.bankName && (
+                                  <>
+                                    <span>•</span>
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded font-mono ${
+                                      item.accountId === 'acc-revolut' || item.bankName?.toLowerCase().includes('revolut')
+                                        ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30'
+                                        : item.accountId === 'acc-sabadell' || item.bankName?.toLowerCase().includes('sabadell')
+                                          ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30'
+                                          : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                                    }`}>
+                                      {item.cardName?.toLowerCase().includes('apple') ? '🍎 Apple Pay' : (item.bankName || 'Banco')}
+                                    </span>
+                                  </>
+                                )}
+                                {item.isInterestOnlyFirstPayment && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-400/25 text-amber-200 border border-amber-400/40 animate-pulse">
+                                      ⭐️ 1ª Cuota Carencia (702€ Solo Intereses)
+                                    </span>
+                                  </>
+                                )}
+                                {item.isLastBusinessDay && !item.isInterestOnlyFirstPayment && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-[10px] font-semibold text-cyan-300 bg-cyan-500/15 px-1.5 py-0.5 rounded border border-cyan-500/25">
+                                      Último día hábil
+                                    </span>
+                                  </>
+                                )}
                                 {item.activeRateStep && (
                                   <>
                                     <span>•</span>
@@ -484,9 +534,8 @@ function FinanceCalendar({
                           </div>
 
                           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                            <span className={`text-sm sm:text-base font-mono font-black ${
-                              isExpense ? 'text-rose-300' : 'text-emerald-300'
-                            }`}>
+                            <span className={`text-sm sm:text-base font-mono font-black ${isExpense ? 'text-rose-300' : 'text-emerald-300'
+                              }`}>
                               {isExpense ? '-' : '+'}{formatEuro(item.amount)}€
                             </span>
                             <button
@@ -510,11 +559,11 @@ function FinanceCalendar({
       ) : (
         /* 4. CALENDARIO CUADRÍCULA CON ERGONOMÍA ANTI-SUPERPOSICIÓN (2 FILAS POR TARJETA) */
         <div className="space-y-4 w-full">
-          
+
           {/* BANNER CUANDO SE ESTÁ MOVIENDO UN ÍTEM TOCANDO EL CALENDARIO */}
           <AnimatePresence>
             {draggingItem && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -544,21 +593,20 @@ function FinanceCalendar({
 
           {/* CONTENEDOR DEL CALENDARIO CON PADDING OPTIMIZADO Y WRAPPER DE SEGURIDAD */}
           <div className="w-full glass-ios p-2.5 sm:p-4 md:p-5 lg:p-6 rounded-[28px] sm:rounded-[34px] border border-white/12 shadow-ambient space-y-3 sm:space-y-4">
-            
+
             {/* Wrapper de desplazamiento horizontal suave para pantallas muy estrechas */}
             <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
               <div className="min-w-[620px] sm:min-w-full">
-                
+
                 {/* Cabecera de Días de la Semana */}
                 <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 mb-1.5 sm:mb-2">
                   {WEEKDAYS.map((w, idx) => (
-                    <div 
-                      key={w} 
-                      className={`text-center py-1.5 px-1 text-[11px] sm:text-xs font-bold uppercase tracking-wider font-display rounded-xl ${
-                        idx >= 5 
-                          ? 'text-amber-400/90 bg-amber-500/[0.04] border border-amber-500/10' 
-                          : 'text-slate-400 bg-white/[0.02] border border-white/5'
-                      }`}
+                    <div
+                      key={w}
+                      className={`text-center py-1.5 px-1 text-[11px] sm:text-xs font-bold uppercase tracking-wider font-display rounded-xl ${idx >= 5
+                        ? 'text-amber-400/90 bg-amber-500/[0.04] border border-amber-500/10'
+                        : 'text-slate-400 bg-white/[0.02] border border-white/5'
+                        }`}
                     >
                       {w}
                     </div>
@@ -567,18 +615,18 @@ function FinanceCalendar({
 
                 {/* Cuadrícula de Casillas del Mes (7 Columnas) */}
                 <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2">
-                  
+
                   {/* Casillas en blanco de inicio de mes */}
                   {leadingBlanks.map(blankIdx => (
-                    <div 
-                      key={`blank-${blankIdx}`} 
+                    <div
+                      key={`blank-${blankIdx}`}
                       className="min-h-[145px] sm:min-h-[165px] md:min-h-[185px] lg:min-h-[205px] rounded-[18px] sm:rounded-[22px] md:rounded-[26px] bg-white/[0.01] border border-white/[0.03] opacity-20 pointer-events-none"
                     />
                   ))}
 
                   {/* Días del Mes */}
                   {days.map(dayNum => {
-                    const dayData = dailyBreakdown ? dailyBreakdown[dayNum] : null;
+                    const dayData = activeDailyBreakdown ? activeDailyBreakdown[dayNum] : null;
                     const dayItems = dayData?.items || [];
                     const isToday = isCurrentViewingMonth && dayNum === currentDayNumber;
                     const isSelected = selectedDay === dayNum;
@@ -605,32 +653,30 @@ function FinanceCalendar({
                         onDragOver={(e) => handleDragOver(e, dayNum)}
                         onDragLeave={() => handleDragLeave(dayNum)}
                         onDrop={(e) => handleDropOnDay(e, dayNum)}
-                        className={`relative min-h-[145px] sm:min-h-[165px] md:min-h-[185px] lg:min-h-[205px] h-auto p-1.5 sm:p-2 rounded-[18px] sm:rounded-[22px] md:rounded-[26px] border transition-all duration-200 flex flex-col justify-between overflow-hidden group ${
-                          isDragOver
-                            ? 'bg-amber-500/30 border-amber-400 ring-2 ring-amber-400 shadow-[0_0_30px_rgba(255,159,10,0.35)] scale-[1.02] z-30'
-                            : isTargetForMove
+                        className={`relative min-h-[145px] sm:min-h-[165px] md:min-h-[185px] lg:min-h-[205px] h-auto p-1.5 sm:p-2 rounded-[18px] sm:rounded-[22px] md:rounded-[26px] border transition-all duration-200 flex flex-col justify-between overflow-hidden group ${isDragOver
+                          ? 'bg-amber-500/30 border-amber-400 ring-2 ring-amber-400 shadow-[0_0_30px_rgba(255,159,10,0.35)] scale-[1.02] z-30'
+                          : isTargetForMove
                             ? 'bg-amber-500/[0.06] border-amber-400/40 hover:border-amber-400 hover:bg-amber-500/15 cursor-pointer shadow-sm'
                             : isSelected
-                            ? 'bg-white/[0.06] border-amber-400/80 ring-1 ring-amber-400/50 shadow-[0_0_20px_rgba(255,159,10,0.15)] z-10'
-                            : isToday 
-                            ? 'bg-amber-500/[0.08] border-amber-400/50 shadow-sm' 
-                            : dayItems.length > 0 
-                            ? 'bg-white/[0.035] border-white/10 hover:border-white/25 hover:bg-white/[0.06]' 
-                            : 'bg-white/[0.015] border-white/[0.05] hover:border-white/15'
-                        }`}
+                              ? 'bg-white/[0.06] border-amber-400/80 ring-1 ring-amber-400/50 shadow-[0_0_20px_rgba(255,159,10,0.15)] z-10'
+                              : isToday
+                                ? 'bg-amber-500/[0.08] border-amber-400/50 shadow-sm'
+                                : dayItems.length > 0
+                                  ? 'bg-white/[0.035] border-white/10 hover:border-white/25 hover:bg-white/[0.06]'
+                                  : 'bg-white/[0.015] border-white/[0.05] hover:border-white/15'
+                          }`}
                       >
-                        
+
                         {/* PARTE SUPERIOR DE LA CASILLA: NÚMERO DE DÍA + BOTÓN AÑADIR */}
                         <div className="flex items-center justify-between gap-1 pb-1 border-b border-white/5 flex-shrink-0">
-                          
+
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className={`text-xs sm:text-sm font-mono font-black px-1.5 sm:px-2 py-0.5 rounded-lg transition-all ${
-                              isToday
-                                ? 'bg-amber-400 text-slate-950 shadow-sm'
-                                : isSelected
+                            <span className={`text-xs sm:text-sm font-mono font-black px-1.5 sm:px-2 py-0.5 rounded-lg transition-all ${isToday
+                              ? 'bg-amber-400 text-slate-950 shadow-sm'
+                              : isSelected
                                 ? 'bg-white/20 text-white border border-white/20'
                                 : 'text-slate-200'
-                            }`}>
+                              }`}>
                               {dayNum}
                             </span>
 
@@ -686,15 +732,14 @@ function FinanceCalendar({
                                   onDragStart={(e) => handleDragStart(e, item)}
                                   onDragEnd={handleDragEnd}
                                   onClick={(e) => handleOpenActionSheet(item, e)}
-                                  className={`p-1.5 sm:p-2 rounded-xl sm:rounded-2xl border transition-all cursor-pointer select-none active:scale-[0.98] ${
-                                    isBeingDragged
-                                      ? 'opacity-30 border-dashed border-amber-400 bg-amber-500/20'
-                                      : item.paid
+                                  className={`p-1.5 sm:p-2 rounded-xl sm:rounded-2xl border transition-all cursor-pointer select-none active:scale-[0.98] ${isBeingDragged
+                                    ? 'opacity-30 border-dashed border-amber-400 bg-amber-500/20'
+                                    : item.paid
                                       ? 'bg-white/[0.02] border-white/5 opacity-65 hover:opacity-90'
                                       : isExpense
-                                      ? 'bg-rose-500/[0.08] border-rose-500/25 hover:border-rose-400/50 hover:bg-rose-500/[0.12]'
-                                      : 'bg-emerald-500/[0.08] border-emerald-500/25 hover:border-emerald-400/50 hover:bg-emerald-500/[0.12]'
-                                  }`}
+                                        ? 'bg-rose-500/[0.08] border-rose-500/25 hover:border-rose-400/50 hover:bg-rose-500/[0.12]'
+                                        : 'bg-emerald-500/[0.08] border-emerald-500/25 hover:border-emerald-400/50 hover:bg-emerald-500/[0.12]'
+                                    }`}
                                   title={`${item.title}: ${isExpense ? '-' : '+'}${formatEuro(item.amount)}€ (${item.paid ? 'Pagado' : 'Pendiente'}). Clic para opciones.`}
                                 >
                                   {/* FILA 1: Checkbox + Icono + Importe destacado a la derecha */}
@@ -706,11 +751,10 @@ function FinanceCalendar({
                                           e.stopPropagation();
                                           if (onTogglePaid) onTogglePaid(item);
                                         }}
-                                        className={`w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full flex items-center justify-center border transition-all flex-shrink-0 ${
-                                          item.paid
-                                            ? 'bg-emerald-400 border-emerald-400 text-slate-950 font-black shadow-sm'
-                                            : 'border-white/30 hover:border-amber-400 text-transparent'
-                                        }`}
+                                        className={`w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full flex items-center justify-center border transition-all flex-shrink-0 ${item.paid
+                                          ? 'bg-emerald-400 border-emerald-400 text-slate-950 font-black shadow-sm'
+                                          : 'border-white/30 hover:border-amber-400 text-transparent'
+                                          }`}
                                         title={item.paid ? 'Marcado (clic para desmarcar)' : 'Marcar como pagado'}
                                       >
                                         <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 stroke-[3]" />
@@ -722,38 +766,50 @@ function FinanceCalendar({
                                     </div>
 
                                     {/* Importe en cápsula compacta y clara */}
-                                    <span className={`text-[10px] sm:text-[11px] font-mono font-black px-1.5 py-0.2 rounded-md flex-shrink-0 ${
-                                      isExpense
-                                        ? (item.paid ? 'text-slate-400 bg-white/[0.04]' : 'text-rose-300 bg-rose-500/15')
-                                        : (item.paid ? 'text-slate-400 bg-white/[0.04]' : 'text-emerald-300 bg-emerald-500/15')
-                                    }`}>
+                                    <span className={`text-[10px] sm:text-[11px] font-mono font-black px-1.5 py-0.2 rounded-md flex-shrink-0 ${isExpense
+                                      ? (item.paid ? 'text-slate-400 bg-white/[0.04]' : 'text-rose-300 bg-rose-500/15')
+                                      : (item.paid ? 'text-slate-400 bg-white/[0.04]' : 'text-emerald-300 bg-emerald-500/15')
+                                      }`}>
                                       {isExpense ? '-' : '+'}{formatEuroBadge(item.amount)}€
                                     </span>
                                   </div>
 
                                   {/* FILA 2: TÍTULO COMPLETO CON ANCHO COMPLETO (HASTA 2 LÍNEAS, SIN CORTAR) */}
                                   <div className="w-full mt-0.5">
-                                    <p 
-                                      className={`text-[10.5px] sm:text-xs font-bold leading-snug line-clamp-2 break-words font-display ${
-                                        item.paid ? 'line-through text-slate-400' : 'text-slate-100'
-                                      }`}
+                                    <p
+                                      className={`text-[10.5px] sm:text-xs font-bold leading-snug line-clamp-2 break-words font-display ${item.paid ? 'line-through text-slate-400' : 'text-slate-100'
+                                        }`}
                                     >
                                       {item.title}
                                     </p>
-                                    {(item.activeRateStep || (Array.isArray(item.activeMonths) && item.activeMonths.length < 12)) && (
-                                      <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                                        {item.activeRateStep && (
-                                          <span className="text-[8px] sm:text-[9px] font-bold px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                            {item.activeRateStep.name || 'Tramo cuota'}
-                                          </span>
-                                        )}
-                                        {Array.isArray(item.activeMonths) && item.activeMonths.length < 12 && (
-                                          <span className="text-[8px] sm:text-[9px] font-bold px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                            {item.activeMonths.length}/12m
-                                          </span>
-                                        )}
-                                      </div>
-                                    )}
+                                    <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                      {item.bankName && (
+                                        <span className={`text-[8px] sm:text-[9px] font-bold px-1 py-0.2 rounded font-mono ${
+                                          item.accountId === 'acc-revolut' || item.bankName?.toLowerCase().includes('revolut')
+                                            ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30'
+                                            : item.accountId === 'acc-sabadell' || item.bankName?.toLowerCase().includes('sabadell')
+                                              ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30'
+                                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                                        }`}>
+                                          {item.cardName?.toLowerCase().includes('apple') ? '🍎 Apple Pay' : (item.bankName || 'Banco')}
+                                        </span>
+                                      )}
+                                      {item.isInterestOnlyFirstPayment && (
+                                        <span className="text-[8px] sm:text-[9px] font-black px-1 py-0.2 rounded bg-amber-400/25 text-amber-200 border border-amber-400/40">
+                                          ⭐️ 1ª Cuota 702€
+                                        </span>
+                                      )}
+                                      {item.activeRateStep && (
+                                        <span className="text-[8px] sm:text-[9px] font-bold px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                          {item.activeRateStep.name || 'Tramo cuota'}
+                                        </span>
+                                      )}
+                                      {Array.isArray(item.activeMonths) && item.activeMonths.length < 12 && (
+                                        <span className="text-[8px] sm:text-[9px] font-bold px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                          {item.activeMonths.length}/12m
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
 
                                 </div>
@@ -860,11 +916,10 @@ function FinanceCalendar({
                           key={`target-day-${d}`}
                           type="button"
                           onClick={() => handleConfirmMove(d)}
-                          className={`py-1.5 rounded-xl text-xs font-mono font-bold transition-all active:scale-95 ${
-                            actionItem.dayOfMonth === d
-                              ? 'bg-amber-400 text-slate-950 font-black ring-2 ring-amber-400'
-                              : 'bg-white/10 hover:bg-cyan-500 hover:text-slate-950 text-white'
-                          }`}
+                          className={`py-1.5 rounded-xl text-xs font-mono font-bold transition-all active:scale-95 ${actionItem.dayOfMonth === d
+                            ? 'bg-amber-400 text-slate-950 font-black ring-2 ring-amber-400'
+                            : 'bg-white/10 hover:bg-cyan-500 hover:text-slate-950 text-white'
+                            }`}
                         >
                           {d}
                         </button>
@@ -1031,11 +1086,11 @@ function FinanceCalendar({
           <AnimatePresence>
             {quickAddDay !== null && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-                <motion.form 
+                <motion.form
                   initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.95, opacity: 0 }}
-                  onSubmit={handleQuickSubmit} 
+                  onSubmit={handleQuickSubmit}
                   className="glass-ios-elevated p-6 rounded-[32px] border border-amber-400/30 max-w-md w-full space-y-4 shadow-glass-ambient"
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-white/10">
@@ -1043,8 +1098,8 @@ function FinanceCalendar({
                       <Sparkles className="w-4 h-4 text-amber-400" />
                       <span>Añadir concepto al día {quickAddDay}</span>
                     </span>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => setQuickAddDay(null)}
                       className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
                     >
@@ -1057,22 +1112,20 @@ function FinanceCalendar({
                     <button
                       type="button"
                       onClick={() => setQuickType('gasto')}
-                      className={`py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-                        quickType === 'gasto'
-                          ? 'bg-rose-500 text-white shadow-md font-black'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
+                      className={`py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${quickType === 'gasto'
+                        ? 'bg-rose-500 text-white shadow-md font-black'
+                        : 'text-slate-400 hover:text-white'
+                        }`}
                     >
                       🔴 Gasto (-€)
                     </button>
                     <button
                       type="button"
                       onClick={() => setQuickType('ingreso')}
-                      className={`py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-                        quickType === 'ingreso'
-                          ? 'bg-emerald-400 text-slate-950 shadow-md font-black'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
+                      className={`py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${quickType === 'ingreso'
+                        ? 'bg-emerald-400 text-slate-950 shadow-md font-black'
+                        : 'text-slate-400 hover:text-white'
+                        }`}
                     >
                       🟢 Ingreso (+€)
                     </button>
@@ -1121,22 +1174,20 @@ function FinanceCalendar({
                     <button
                       type="button"
                       onClick={() => setQuickFrequency('puntual')}
-                      className={`p-2.5 rounded-xl border text-center transition-all active:scale-95 ${
-                        quickFrequency === 'puntual'
-                          ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold'
-                          : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white'
-                      }`}
+                      className={`p-2.5 rounded-xl border text-center transition-all active:scale-95 ${quickFrequency === 'puntual'
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold'
+                        : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white'
+                        }`}
                     >
                       Solo este mes
                     </button>
                     <button
                       type="button"
                       onClick={() => setQuickFrequency('mensual')}
-                      className={`p-2.5 rounded-xl border text-center transition-all active:scale-95 ${
-                        quickFrequency === 'mensual'
-                          ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold'
-                          : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white'
-                      }`}
+                      className={`p-2.5 rounded-xl border text-center transition-all active:scale-95 ${quickFrequency === 'mensual'
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold'
+                        : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white'
+                        }`}
                     >
                       Todos los meses
                     </button>
